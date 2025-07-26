@@ -122,31 +122,31 @@ void ld_data_destroy(ld_data_t *ld)
 int32_t ld_dust_pos(ld_data_t *ld)
 {
 	const ld_opt_t *opt = ld->opt;
-	int32_t i, max_i, cnt;
-	double s, max_sf, max_sb;
+	int32_t i, l, max_i, cnt;
+	double s, sl, max_sf = 0.0, max_sb = 0.0;
 
 	// backward
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
-	for (i = kdq_size(ld->q) - 1, s = 0.0, max_sb = 0.0, max_i = -1; i >= 0; --i) {
+	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = 0.0, max_i = -1; i >= 0; --i, ++l) {
 		uint32_t x;
 		x = kdq_at(ld->q, i);
 		if ((x & 1) == 0) {
 			cnt = ++ld->ht[x>>1];
-			//if (kdq_size(ld->q) == 512) fprintf(stderr, "X2\t%d\t%x\t%d\t%f\n", i, x, cnt, s);
 			s += ld->c[cnt] - opt->thres;
 		} else {
 			s -= opt->thres;
 		}
-		if (s > max_sb)
-			max_sb = s, max_i = i;
-		else if (max_sb - s > opt->xdrop)
+		sl = s + ld->f[l];
+		if (sl > max_sb)
+			max_sb = sl, max_i = i;
+		else if (max_sb - sl > opt->xdrop)
 			break;
 	}
 	if (max_i < 0) return -1;
 
 	// forward
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
-	for (i = max_i, s = 0.0, max_sf = 0.0; i < kdq_size(ld->q); ++i) {
+	for (i = max_i, l = 1, s = sl = 0.0; i < kdq_size(ld->q); ++i, ++l) {
 		uint32_t x;
 		x = kdq_at(ld->q, i);
 		if ((x & 1) == 0) {
@@ -155,10 +155,10 @@ int32_t ld_dust_pos(ld_data_t *ld)
 		} else {
 			s -= opt->thres;
 		}
-		if (s >= max_sf) max_sf = s;
+		sl = s + ld->f[l];
+		if (sl >= max_sf) max_sf = sl;
 	}
-	//if (kdq_size(ld->q) == 512) fprintf(stderr, "X1\t%d\t%f\t%f\t%f\n", max_i, max_sb, max_sf, s);
-	return s >= max_sf - 1e-6? max_i : -1;
+	return sl >= max_sf - 1e-6? max_i : -1;
 }
 
 void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
@@ -185,7 +185,6 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			j = ld_dust_pos(ld);
 			if (j > 0) {
 				int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1);
-				//if (kdq_size(ld->q) == 512) fprintf(stderr, "[%ld,%ld)\t%ld\t[%ld,%ld)\n", (long)st2, (long)i, (long)j, (long)st, (long)en);
 				if (st2 < en) {
 					if (st < 0 || st2 < st) st = st2;
 				} else {
