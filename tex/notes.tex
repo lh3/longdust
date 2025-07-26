@@ -1,0 +1,68 @@
+\documentclass[10pt]{article}
+\usepackage[margin=1in]{geometry}
+\begin{document}
+
+Let $\Sigma=\{{\rm A},{\rm C},{\rm G},{\rm T}\}$ be the DNA alphabet.
+$x\in\Sigma^*$ is a DNA string.
+$t\in\Sigma^k$ is a $k$-mer.
+For $|x|\ge k$, $c_x(t)$ is the occurrence of $k$-mer $t$ in $x$;
+$\ell(x)=\sum_t c_x(t)=|x|-k+1$ is the total number of $k$-mers in $x$.
+$c_x(t)\sim{\rm Poisson}(\lambda)$
+where $\lambda=\ell(x)/4^k$.
+Let
+$$
+p(n|\lambda)=\frac{\lambda^n}{n!}e^{-\lambda}
+$$
+be the PMF of Poisson distribution and thus
+$$
+\log p(n|\lambda)=n\log\lambda-\lambda-\log n!
+$$
+The composite likelihood of $x$ is
+$$
+P(x)=\prod_{t\in\Sigma^k}p(c_x(t)|\lambda)
+$$
+Define $\kappa(x)$ as the set of $k$-mers occurring in $x$.
+Compute
+\begin{eqnarray*}
+\log P(x)&=&\sum_{t\in\Sigma^k}\log p(c_x(t)|\lambda)\\
+&=&\sum_{t\in\Sigma^k}c_x(t)\log\lambda-\sum_{t\in\Sigma^k}\lambda-\sum_{t\in\kappa(x)}\log c_x(t)!\\
+&=&\ell(x)\log\lambda-4^k\cdot\lambda-\sum_{t\in\kappa(x)}\log c_x(t)!\\
+&=&4^k\cdot(\lambda\log\lambda-\lambda)-\sum_{t\in\kappa(x)}\log c_x(t)!\\
+&=&\ell(x)\cdot\log\frac{\ell(x)}{4^k}-\ell(x)-\sum_{t\in\kappa(x)}\log c_x(t)!
+\end{eqnarray*}
+
+%Given $x$, $|x|>k$, suppose $t=x[|x|-k,|x|)$ is the last $k$-mer
+%and $x'=x[0,|x|-1)$ is the substring excluding the last symbol.
+%We write $x=x'\circ t$ in this case.
+%We have
+%\begin{eqnarray*}
+%\log P(x)-\log P(x')&=&-\log c_x(t)+\log\frac{\ell(x)}{4^k}+\left[\ell(x')\log\left(1+\frac{1}\ell(x')\right)-1\right]\\
+%&=&-\log c_x(t)+\log\frac{\ell(x)}{4^k}-\frac{1}{2\ell(x')}+O\left(\frac{1}{\ell(x')^2}\right)
+%\end{eqnarray*}
+
+The entropy of Poisson distribution is
+$$
+H(\lambda)=-\sum_{n=0}^\infty p(n|\lambda)\log p(n|\lambda)
+=e^{-\lambda}\sum_{n=0}^\infty\log n!\cdot\frac{\lambda^n}{n!}-\lambda(\log\lambda-1)
+$$
+It approaches 
+$$
+\frac{1}{2}\log(2\pi e\lambda)-\frac{1}{12\lambda}+O\left(\frac{1}{\lambda^2}\right)
+$$
+when $\lambda\to\infty$, or
+$$
+-\lambda(\log\lambda-1)+O(\lambda^2)
+$$
+when $\lambda\to0$.
+Importantly, $\log P(x)$ approaches $-4^k\cdot H(\lambda)$ if $x$ is a random string.
+We therefore introduce
+$$
+Q(x)=-4^k\cdot H(\lambda)-\log P(x)=\sum_{t\in\kappa(x)}\log c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
+$$
+where
+$$
+f(\lambda)=e^{-\lambda}\sum_{n=0}^\infty\log n!\cdot\frac{\lambda^n}{n!}
+$$
+can be calculated numerically.
+
+\end{document}
