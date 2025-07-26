@@ -29,3 +29,6 @@ depend:
 		(LC_ALL=C; export LC_ALL; makedepend -Y -- $(CFLAGS) $(DFLAGS) -- *.c)
 
 # DO NOT DELETE
+
+kalloc.o: kalloc.h
+longdust.o: kalloc.h khashl.h kdq.h

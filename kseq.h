@@ -83,7 +83,7 @@
 		} \
 		return (int)ks->buf[ks->begin++]; \
 	} \
-	static inline int ks_getuntil(kstream_t *ks, int delimiter, kstring_t *str, int *dret) \
+	static inline ssize_t ks_getuntil(kstream_t *ks, int delimiter, kstring_t *str, int *dret) \
 	{ return ks_getuntil2(ks, delimiter, str, dret, 0); }
 
 #ifndef KSTRING_T
