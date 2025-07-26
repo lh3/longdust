@@ -76,13 +76,15 @@ static unsigned char seq_nt4_table[256] = {
 
 KDQ_INIT(uint32_t)
 
-typedef struct {
+struct ld_data_s {
 	const ld_opt_t *opt;
 	void *km;
 	kdq_t(uint32_t) *q;
 	int32_t *ht;
 	double *f, *c;
-} ld_data_t;
+	int64_t n_intv, m_intv;
+	ld_intv_t *intv;
+};
 
 void ld_opt_init(ld_opt_t *opt)
 {
@@ -98,21 +100,22 @@ ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
 	ld_data_t *ld;
 	ld = Kcalloc(km, ld_data_t, 1);
 	ld->opt = opt;
-	ld->q = kdq_init(uint32_t, km);
 	ld->ht = Kcalloc(km, int32_t, 1U<<2*opt->kmer);
 	ld->f = ld_cal_f(km, opt->kmer, opt->ws);
 	ld->c = Kcalloc(km, double, opt->ws + 1);
 	for (i = 2; i <= opt->ws; ++i)
 		ld->c[i] = log(i);
+	ld->q = kdq_init(uint32_t, km);
 	return ld;
 }
 
 void ld_data_destroy(ld_data_t *ld)
 {
 	void *km = ld->km;
+	kfree(km, ld->intv);
+	kdq_destroy(uint32_t, ld->q);
 	kfree(km, ld->c); kfree(km, ld->f);
 	kfree(km, ld->ht);
-	kdq_destroy(uint32_t, ld->q);
 	kfree(km, ld);
 }
 
@@ -124,11 +127,12 @@ int32_t ld_dust_pos(ld_data_t *ld)
 
 	// backward
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
-	for (i = kdq_size(ld->q) - 1, s = 0.0, max_sb = 0.0, max_i = -1; i >= 0; ++i) {
+	for (i = kdq_size(ld->q) - 1, s = 0.0, max_sb = 0.0, max_i = -1; i >= 0; --i) {
 		uint32_t x;
 		x = kdq_at(ld->q, i);
 		if ((x & 1) == 0) {
 			cnt = ++ld->ht[x>>1];
+			//if (kdq_size(ld->q) == 512) fprintf(stderr, "X2\t%d\t%x\t%d\t%f\n", i, x, cnt, s);
 			s += ld->c[cnt] - opt->thres;
 		} else {
 			s -= opt->thres;
@@ -153,7 +157,7 @@ int32_t ld_dust_pos(ld_data_t *ld)
 		}
 		if (s >= max_sf) max_sf = s;
 	}
-
+	//if (kdq_size(ld->q) == 512) fprintf(stderr, "X1\t%d\t%f\t%f\t%f\n", max_i, max_sb, max_sf, s);
 	return s >= max_sf - 1e-6? max_i : -1;
 }
 
@@ -161,9 +165,10 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 {
 	const ld_opt_t *opt = ld->opt;
 	uint32_t x, mask = (1U<<2*opt->kmer) - 1;
-	int64_t i, l;
+	int64_t i, l, st = -1, en = -1;
+	ld->n_intv = 0;
 	for (i = 0, x = 0, l = 0; i <= len; ++i) {
-		int32_t ambi, b = i < len? seq_nt4_table[seq[i]] : 4;
+		int32_t j, ambi, b = i < len? seq_nt4_table[seq[i]] : 4;
 		if (i%1000000 == 0) fprintf(stderr, "%ld\t%ld\n", (long)i, (long)kdq_size(ld->q));
 		if (b < 4) {
 			x = (x << 2 | b) & mask;
@@ -176,8 +181,24 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		if (kdq_size(ld->q) >= opt->ws)
 			kdq_shift(uint32_t, ld->q);
 		kdq_push(uint32_t, ld->q, x<<1|ambi);
-		if (!ambi)
-			ld_dust_pos(ld);
+		if (!ambi) {
+			j = ld_dust_pos(ld);
+			if (j > 0) {
+				int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1);
+				//if (kdq_size(ld->q) == 512) fprintf(stderr, "[%ld,%ld)\t%ld\t[%ld,%ld)\n", (long)st2, (long)i, (long)j, (long)st, (long)en);
+				if (st2 < en) {
+					if (st < 0 || st2 < st) st = st2;
+				} else {
+					if (st >= 0 && en - st >= opt->kmer) {
+						Kgrow(ld->km, ld_intv_t, ld->intv, ld->n_intv, ld->m_intv);
+						ld->intv[ld->n_intv].st = st;
+						ld->intv[ld->n_intv++].en = en;
+					}
+					st = st2;
+				}
+				en = i + 1;
+			}
+		}
 	}
 }
 
@@ -217,7 +238,11 @@ int main(int argc, char *argv[])
 	ks = kseq_init(fp);
 	ld = ld_data_init(0, &opt);
 	while (kseq_read(ks) >= 0) {
+		int64_t i;
 		ld_dust(ld, ks->seq.l, (uint8_t*)ks->seq.s);
+		for (i = 0; i < ld->n_intv; ++i) {
+			printf("%s\t%ld\t%ld\n", ks->name.s, (long)ld->intv[i].st, (long)ld->intv[i].en);
+		}
 	}
 	ld_data_destroy(ld);
 	kseq_destroy(ks);
