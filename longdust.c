@@ -120,7 +120,7 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld);
 }
 
-static int32_t ld_dust_pos(ld_data_t *ld)
+static int32_t ld_dust_back(ld_data_t *ld)
 {
 	const ld_opt_t *opt = ld->opt;
 	int32_t i, l, max_i;
@@ -150,34 +150,23 @@ static int32_t ld_dust_pos(ld_data_t *ld)
 	return sl >= max_sf - 1e-6? max_i : -1;
 }
 
-static int32_t ld_extend(ld_data_t *ld, int32_t j0)
+static int32_t ld_extend(ld_data_t *ld)
 {
-	const ld_opt_t *opt = ld->opt;
 	uint32_t x = kdq_at(ld->q, kdq_size(ld->q) - 1);
-	int32_t i, j1, l = kdq_size(ld->q) - 1 - j0;
+	int32_t l = kdq_size(ld->q) - 1;
 	double diff;
-
 	if (x&1) return -1;
 	diff = ld->c[ld->ht[x>>1] + 1] - (ld->f[l + 1] - ld->f[l]);
-	if (diff < opt->thres) return -1; // if this doesn't increase score, don't extend
-
-	++ld->ht[x>>1], ++l;
-	for (i = j0 - 1, j1 = j0; i >= 0; --i) {
-		uint32_t x = kdq_at(ld->q, i);
-		diff = ld->c[ld->ht[x>>1] + 1] - (ld->f[l + 1] - ld->f[l]);
-		if (diff > opt->thres)
-			++ld->ht[x>>1], j1 = i, ++l;
-		else break;
-	}
-	return j1;
+	if (diff < ld->opt->thres) return -1; // if this doesn't increase score, don't extend
+	return 0;
 }
 
 void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 {
 	const ld_opt_t *opt = ld->opt;
 	uint32_t x, mask = (1U<<2*opt->kmer) - 1;
-	int64_t l, st = -1, en = -1;
-	int64_t i, last_i = -1, last_j = -1;
+	int64_t i, l, st = -1, en = -1;
+	int64_t last_i = -1, last_q = -1; // last_i: i of last successful LCR; last_q: pos in queue when last_i is set
 	int32_t *ht;
 
 	ld->n_intv = 0;
@@ -196,16 +185,16 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			uint32_t *p;
 			p = kdq_shift(uint32_t, ld->q);
 			if ((*p&1) == 0) --ht[*p>>1];
-			if (last_j == 0) --ld->ht[*p>>1];
-			else --last_j;
+			if (last_q == 0) --ld->ht[*p>>1];
+			else --last_q; // this needs to be updated as the queue is shifted
 		}
 		kdq_push(uint32_t, ld->q, x<<1|ambi);
 		if (ambi) continue;
 
 		j = -1;
-		if (++ht[x] > 1) { // no need to call ld_dust_pos() if x is a singleton in the window
-			if (last_i == i - 1 && last_j == 0) j = ld_extend(ld, last_j);
-			if (j < 0) j = ld_dust_pos(ld);
+		if (++ht[x] > 1) { // no need to call ld_dust_back() if x is a singleton in the window
+			if (last_i == i - 1 && last_q == 0) j = ld_extend(ld); // test and potentially extend the base at i
+			if (j < 0) j = ld_dust_back(ld); // do full dust_back
 		}
 		if (j >= 0) {
 			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1);
@@ -220,7 +209,7 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 				st = st2;
 			}
 			en = i + 1;
-			last_i = i, last_j = j;
+			last_i = i, last_q = j;
 		}
 	}
 	if (st >= 0 && en - st >= opt->kmer) {
