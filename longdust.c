@@ -90,7 +90,7 @@ void ld_opt_init(ld_opt_t *opt)
 {
 	opt->kmer = 6;
 	opt->ws = 1024;
-	opt->thres = 0.5;
+	opt->thres = 0.6;
 	opt->xdrop = 100.0;
 }
 
@@ -158,7 +158,7 @@ int32_t ld_dust_pos(ld_data_t *ld)
 		sl = s + ld->f[l];
 		if (sl >= max_sf) max_sf = sl;
 	}
-	fprintf(stderr, "%f\t%f\t%f\n", max_sb, max_sf, sl);
+	//fprintf(stderr, "%f\t%f\t%f\n", max_sb, max_sf, sl);
 	return sl >= max_sf - 1e-6? max_i : -1;
 }
 
@@ -192,7 +192,8 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			int32_t j = -1, cnt = ++ht[x];
 			if (cnt > 1)
 				j = ld_dust_pos(ld);
-			if (j > 0) {
+			//fprintf(stderr, "X1\t%ld\t[%ld,%ld)\t%d\n", (long)i, (long)st, (long)en, j);
+			if (j >= 0) {
 				int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1);
 				if (st2 < en) {
 					if (st < 0 || st2 < st) st = st2;
