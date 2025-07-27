@@ -103,7 +103,8 @@ void ld_opt_init(ld_opt_t *opt)
 	opt->kmer = 6;
 	opt->ws = 1024;
 	opt->thres = 0.6;
-	opt->xdrop_len = 100;
+	opt->xdrop_len1 = 200;
+	opt->xdrop_len2 = 50;
 }
 
 ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
@@ -134,7 +135,8 @@ void ld_data_destroy(ld_data_t *ld)
 static int32_t ld_dust_back(ld_data_t *ld, int64_t pos) // pos only for debugging
 {
 	const ld_opt_t *opt = ld->opt;
-	double xdrop = opt->thres * opt->xdrop_len;
+	double xdrop1 = opt->thres * opt->xdrop_len1;
+	double xdrop2 = opt->thres * opt->xdrop_len2;
 	int32_t i, l, max_i;
 	double s, sl, max_sf = 0.0, max_sb = 0.0;
 
@@ -144,10 +146,13 @@ static int32_t ld_dust_back(ld_data_t *ld, int64_t pos) // pos only for debuggin
 		uint32_t x = kdq_at(ld->q, i);
 		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
 		sl = s - ld->f[l];
-		if (sl > max_sb)
+		if (sl > max_sb) {
 			max_sb = sl, max_i = i;
-		else if (max_sb - sl > xdrop)
-			break;
+		} else if (max_sb == 0.0) { // haven't gone beyond the baseline before
+			if (max_sb - sl > xdrop1) break;
+		} else { // max_sb > 0.0 in this case
+			if (max_sb - sl > xdrop2) break;
+		}
 	}
 	if (max_i < 0) return -1;
 
