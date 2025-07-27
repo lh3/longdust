@@ -15,4 +15,19 @@ typedef struct {
 struct ld_data_s;
 typedef struct ld_data_s ld_data_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void ld_opt_init(ld_opt_t *opt);
+ld_data_t *ld_data_init(void *km, const ld_opt_t *opt);
+void ld_data_destroy(ld_data_t *ld);
+
+void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq);
+void ld_dust2(ld_data_t *ld, int64_t len, const uint8_t *seq);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

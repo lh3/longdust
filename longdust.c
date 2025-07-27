@@ -4,20 +4,21 @@
 #include <math.h>
 #include "kalloc.h"
 #include "kdq.h"
+#include "ksort.h"
 #include "longdust.h"
 
 /***************
  * Compute f() *
  ***************/
 
-double ld_f_large(double lambda) // with Sterling's approximation
+static double ld_f_large(double lambda) // with Sterling's approximation
 {
 	double x = 0.5 * log(2.0 * M_PI * M_E * lambda) - 1.0 / 12.0 / lambda * (1.0 + 0.5 / lambda + 19.0 / 30.0 / lambda / lambda);
 	x += lambda * (log(lambda) - 1.0);
 	return x;
 }
 
-double *ld_cal_f(void *km, int32_t k, int32_t max_l)
+static double *ld_cal_f(void *km, int32_t k, int32_t max_l)
 {
 	static const double eps = 1e-9;
 	static const int32_t max_n = 10000;
@@ -70,10 +71,23 @@ static unsigned char seq_nt4_table[256] = {
 	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
 };
 
+static unsigned char seq_comp_tab[] = { // not really necessary
+	  0,   1,	2,	 3,	  4,   5,	6,	 7,	  8,   9,  10,	11,	 12,  13,  14,	15,
+	 16,  17,  18,	19,	 20,  21,  22,	23,	 24,  25,  26,	27,	 28,  29,  30,	31,
+	 32,  33,  34,	35,	 36,  37,  38,	39,	 40,  41,  42,	43,	 44,  45,  46,	47,
+	 48,  49,  50,	51,	 52,  53,  54,	55,	 56,  57,  58,	59,	 60,  61,  62,	63,
+	 64, 'T', 'V', 'G', 'H', 'E', 'F', 'C', 'D', 'I', 'J', 'M', 'L', 'K', 'N', 'O',
+	'P', 'Q', 'Y', 'S', 'A', 'A', 'B', 'W', 'X', 'R', 'Z',	91,	 92,  93,  94,	95,
+	 64, 't', 'v', 'g', 'h', 'e', 'f', 'c', 'd', 'i', 'j', 'm', 'l', 'k', 'n', 'o',
+	'p', 'q', 'y', 's', 'a', 'a', 'b', 'w', 'x', 'r', 'z', 123, 124, 125, 126, 127
+};
+
 /****************************
  * Internal data structures *
  ****************************/
 
+#define rskey(x) ((x).st)
+KRADIX_SORT_INIT(ld_intv, ld_intv_t, rskey, 8)
 KDQ_INIT(uint32_t)
 
 struct ld_data_s {
@@ -162,7 +176,7 @@ static int32_t ld_extend(ld_data_t *ld)
 	return 0;
 }
 
-void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
+void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 {
 	const ld_opt_t *opt = ld->opt;
 	uint32_t x, mask = (1U<<2*opt->kmer) - 1;
@@ -220,6 +234,59 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		ld->intv[ld->n_intv++].en = en;
 	}
 	kfree(ld->km, ht);
+	radix_sort_ld_intv(ld->intv, ld->intv + ld->n_intv);
+}
+
+void ld_dust2(ld_data_t *ld, int64_t len, const uint8_t *seq)
+{
+	int64_t i, j[2], st, en, n[2];
+	uint8_t *rev;
+	ld_intv_t *intv[2];
+
+	// forward
+	ld_dust1(ld, len, seq);
+	n[0] = ld->n_intv;
+	intv[0] = Kmalloc(ld->km, ld_intv_t, n[0]);
+	memcpy(intv[0], ld->intv, n[0] * sizeof(ld_intv_t));
+
+	// reverse
+	rev = Kmalloc(ld->km, uint8_t, len);
+	for (i = 0; i < len; ++i)
+		rev[len - i - 1] = seq[i] < 128? seq_comp_tab[seq[i]] : seq[i];
+	ld_dust1(ld, len, rev);
+	kfree(ld->km, rev);
+	n[1] = ld->n_intv;
+	intv[1] = Kmalloc(ld->km, ld_intv_t, n[1]);
+	for (i = 0; i < ld->n_intv; ++i) {
+		intv[1][ld->n_intv - 1 - i].st = len - ld->intv[i].en;
+		intv[1][ld->n_intv - 1 - i].en = len - ld->intv[i].st;
+	}
+
+	// merge
+	ld->n_intv = 0;
+	st = en = 0;
+	j[0] = j[1] = 0;
+	while (j[0] < n[0] || j[1] < n[1]) {
+		int32_t w = j[0] >= n[0]? 1 : j[1] >= n[1]? 0 : intv[0][j[0]].st < intv[1][j[1]].st? 0 : 1;
+		const ld_intv_t *p = &intv[w][j[w]++];
+		if (p->st <= en) {
+			en = en > p->en? en : p->en;
+		} else {
+			if (en > st) {
+				Kgrow(ld->km, ld_intv_t, ld->intv, ld->n_intv, ld->m_intv);
+				ld->intv[ld->n_intv].st = st;
+				ld->intv[ld->n_intv++].en = en;
+			}
+			st = p->st, en = p->en;
+		}
+	}
+	if (en > st) {
+		Kgrow(ld->km, ld_intv_t, ld->intv, ld->n_intv, ld->m_intv);
+		ld->intv[ld->n_intv].st = st;
+		ld->intv[ld->n_intv++].en = en;
+	}
+	kfree(ld->km, intv[1]);
+	kfree(ld->km, intv[0]);
 }
 
 /*****************
@@ -235,18 +302,19 @@ KSEQ_INIT(gzFile, gzread)
 int main(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t c;
+	int32_t c, for_only = 0;
 	gzFile fp;
 	kseq_t *ks;
 	ld_opt_t opt;
 	ld_data_t *ld;
 
 	ld_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "k:w:d:t:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:w:d:t:f", 0)) >= 0) {
 		if (c == 'k') opt.kmer = atoi(o.arg);
 		else if (c == 'w') opt.ws = atoi(o.arg);
 		else if (c == 't') opt.thres = atof(o.arg);
 		else if (c == 'd') opt.xdrop = atof(o.arg);
+		else if (c == 'f') for_only = 1;
 	}
 	if (argc - o.ind == 0) {
 		fprintf(stderr, "Usage: longdust [options] <in.fa>\n");
@@ -255,6 +323,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -w INT      window size [%d]\n", opt.ws);
 		fprintf(stderr, "  -t FLOAT    score threshold [%g]\n", opt.thres);
 		fprintf(stderr, "  -d FLOAT    X-drop [%g]\n", opt.xdrop);
+		fprintf(stderr, "  -f          forward strand only\n");
 		return 1;
 	}
 
@@ -263,10 +332,10 @@ int main(int argc, char *argv[])
 	ld = ld_data_init(0, &opt);
 	while (kseq_read(ks) >= 0) {
 		int64_t i;
-		ld_dust(ld, ks->seq.l, (uint8_t*)ks->seq.s);
-		for (i = 0; i < ld->n_intv; ++i) {
+		if (for_only) ld_dust1(ld, ks->seq.l, (uint8_t*)ks->seq.s);
+		else ld_dust2(ld, ks->seq.l, (uint8_t*)ks->seq.s);
+		for (i = 0; i < ld->n_intv; ++i)
 			printf("%s\t%ld\t%ld\n", ks->name.s, (long)ld->intv[i].st, (long)ld->intv[i].en);
-		}
 	}
 	ld_data_destroy(ld);
 	kseq_destroy(ks);
