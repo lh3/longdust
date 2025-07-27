@@ -170,6 +170,7 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 	int32_t *ht;
 
 	ld->n_intv = 0;
+	ld->q->front = ld->q->count = 0;
 	ht = Kcalloc(ld->km, int32_t, mask + 1);
 	for (i = 0, x = 0, l = 0; i <= len; ++i) {
 		int32_t ambi, j, b = i < len? seq_nt4_table[seq[i]] : 4;
