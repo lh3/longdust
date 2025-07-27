@@ -166,9 +166,12 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 	const ld_opt_t *opt = ld->opt;
 	uint32_t x, mask = (1U<<2*opt->kmer) - 1;
 	int64_t i, l, st = -1, en = -1;
+	int32_t *ht;
+
 	ld->n_intv = 0;
+	ht = Kcalloc(ld->km, int32_t, mask + 1);
 	for (i = 0, x = 0, l = 0; i <= len; ++i) {
-		int32_t j, ambi, b = i < len? seq_nt4_table[seq[i]] : 4;
+		int32_t ambi, b = i < len? seq_nt4_table[seq[i]] : 4;
 		if (i%1000000 == 0) fprintf(stderr, "%ld\t%ld\n", (long)i, (long)kdq_size(ld->q));
 		if (b < 4) {
 			x = (x << 2 | b) & mask;
@@ -178,11 +181,16 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			l = 0;
 			ambi = 1;
 		}
-		if (kdq_size(ld->q) >= opt->ws)
-			kdq_shift(uint32_t, ld->q);
+		if (kdq_size(ld->q) >= opt->ws) {
+			uint32_t *p;
+			p = kdq_shift(uint32_t, ld->q);
+			if ((*p&1) == 0) --ht[*p>>1];
+		}
 		kdq_push(uint32_t, ld->q, x<<1|ambi);
 		if (!ambi) {
-			j = ld_dust_pos(ld);
+			int32_t j = -1, cnt = ++ht[x];
+			if (ld->c[cnt] > opt->thres)
+				j = ld_dust_pos(ld);
 			if (j > 0) {
 				int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1);
 				if (st2 < en) {
@@ -199,6 +207,7 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			}
 		}
 	}
+	kfree(ld->km, ht);
 }
 
 /*****************
