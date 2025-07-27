@@ -77,11 +77,12 @@ static unsigned char seq_nt4_table[256] = {
 KDQ_INIT(uint32_t)
 
 struct ld_data_s {
+	void *km; // memory
 	const ld_opt_t *opt;
-	void *km;
+	double *f, *c;
 	kdq_t(uint32_t) *q;
 	int32_t *ht;
-	double *f, *c;
+	// output
 	int64_t n_intv, m_intv;
 	ld_intv_t *intv;
 };
@@ -119,24 +120,18 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld);
 }
 
-int32_t ld_dust_pos(ld_data_t *ld)
+static int32_t ld_dust_pos(ld_data_t *ld)
 {
 	const ld_opt_t *opt = ld->opt;
-	int32_t i, l, max_i, cnt;
+	int32_t i, l, max_i;
 	double s, sl, max_sf = 0.0, max_sb = 0.0;
 
 	// backward
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
 	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = 0.0, max_i = -1; i >= 0; --i, ++l) {
-		uint32_t x;
-		x = kdq_at(ld->q, i);
-		if ((x & 1) == 0) {
-			cnt = ++ld->ht[x>>1];
-			s += ld->c[cnt] - opt->thres;
-		} else {
-			s -= opt->thres;
-		}
-		sl = s + ld->f[l];
+		uint32_t x = kdq_at(ld->q, i);
+		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
+		sl = s - ld->f[l];
 		if (sl > max_sb)
 			max_sb = sl, max_i = i;
 		else if (max_sb - sl > opt->xdrop)
@@ -147,33 +142,48 @@ int32_t ld_dust_pos(ld_data_t *ld)
 	// forward
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
 	for (i = max_i, l = 1, s = sl = 0.0; i < kdq_size(ld->q); ++i, ++l) {
-		uint32_t x;
-		x = kdq_at(ld->q, i);
-		if ((x & 1) == 0) {
-			cnt = ++ld->ht[x>>1]; // this is the new count
-			s += ld->c[cnt] - opt->thres;
-		} else {
-			s -= opt->thres;
-		}
-		sl = s + ld->f[l];
+		uint32_t x = kdq_at(ld->q, i);
+		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
+		sl = s - ld->f[l];
 		if (sl >= max_sf) max_sf = sl;
 	}
-	//fprintf(stderr, "%f\t%f\t%f\n", max_sb, max_sf, sl);
 	return sl >= max_sf - 1e-6? max_i : -1;
+}
+
+static int32_t ld_extend(ld_data_t *ld, int32_t j0)
+{
+	const ld_opt_t *opt = ld->opt;
+	uint32_t x = kdq_at(ld->q, kdq_size(ld->q) - 1);
+	int32_t i, j1, l = kdq_size(ld->q) - 1 - j0;
+	double diff;
+
+	if (x&1) return -1;
+	diff = ld->c[ld->ht[x>>1] + 1] - (ld->f[l + 1] - ld->f[l]);
+	if (diff < opt->thres) return -1; // if this doesn't increase score, don't extend
+
+	++ld->ht[x>>1], ++l;
+	for (i = j0 - 1, j1 = j0; i >= 0; --i) {
+		uint32_t x = kdq_at(ld->q, i);
+		diff = ld->c[ld->ht[x>>1] + 1] - (ld->f[l + 1] - ld->f[l]);
+		if (diff > opt->thres)
+			++ld->ht[x>>1], j1 = i, ++l;
+		else break;
+	}
+	return j1;
 }
 
 void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 {
 	const ld_opt_t *opt = ld->opt;
 	uint32_t x, mask = (1U<<2*opt->kmer) - 1;
-	int64_t i, l, st = -1, en = -1;
+	int64_t l, st = -1, en = -1;
+	int64_t i, last_i = -1, last_j = -1;
 	int32_t *ht;
 
 	ld->n_intv = 0;
 	ht = Kcalloc(ld->km, int32_t, mask + 1);
 	for (i = 0, x = 0, l = 0; i <= len; ++i) {
-		int32_t ambi, b = i < len? seq_nt4_table[seq[i]] : 4;
-		//if (i%1000000 == 0) fprintf(stderr, "%ld\t%ld\n", (long)i, (long)kdq_size(ld->q));
+		int32_t ambi, j, b = i < len? seq_nt4_table[seq[i]] : 4;
 		if (b < 4) {
 			x = (x << 2 | b) & mask;
 			++l;
@@ -182,31 +192,35 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			l = 0;
 			ambi = 1;
 		}
-		if (kdq_size(ld->q) >= opt->ws) {
+		if (kdq_size(ld->q) >= opt->ws) { // remove from the queue
 			uint32_t *p;
 			p = kdq_shift(uint32_t, ld->q);
 			if ((*p&1) == 0) --ht[*p>>1];
+			if (last_j == 0) --ld->ht[*p>>1];
+			else --last_j;
 		}
 		kdq_push(uint32_t, ld->q, x<<1|ambi);
-		if (!ambi) {
-			int32_t j = -1, cnt = ++ht[x];
-			if (cnt > 1)
-				j = ld_dust_pos(ld);
-			//fprintf(stderr, "X1\t%ld\t[%ld,%ld)\t%d\n", (long)i, (long)st, (long)en, j);
-			if (j >= 0) {
-				int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1);
-				if (st2 < en) {
-					if (st < 0 || st2 < st) st = st2;
-				} else {
-					if (st >= 0 && en - st >= opt->kmer) {
-						Kgrow(ld->km, ld_intv_t, ld->intv, ld->n_intv, ld->m_intv);
-						ld->intv[ld->n_intv].st = st;
-						ld->intv[ld->n_intv++].en = en;
-					}
-					st = st2;
+		if (ambi) continue;
+
+		j = -1;
+		if (++ht[x] > 1) { // no need to call ld_dust_pos() if x is a singleton in the window
+			if (last_i == i - 1 && last_j == 0) j = ld_extend(ld, last_j);
+			if (j < 0) j = ld_dust_pos(ld);
+		}
+		if (j >= 0) {
+			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1);
+			if (st2 < en) {
+				if (st < 0 || st2 < st) st = st2;
+			} else {
+				if (st >= 0 && en - st >= opt->kmer) {
+					Kgrow(ld->km, ld_intv_t, ld->intv, ld->n_intv, ld->m_intv);
+					ld->intv[ld->n_intv].st = st;
+					ld->intv[ld->n_intv++].en = en;
 				}
-				en = i + 1;
+				st = st2;
 			}
+			en = i + 1;
+			last_i = i, last_j = j;
 		}
 	}
 	if (st >= 0 && en - st >= opt->kmer) {
