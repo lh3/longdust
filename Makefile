@@ -31,5 +31,5 @@ depend:
 # DO NOT DELETE
 
 kalloc.o: kalloc.h
-longdust.o: kalloc.h kdq.h ksort.h longdust.h
+longdust.o: kalloc.h kdq.h longdust.h
 main.o: longdust.h ketopt.h kseq.h

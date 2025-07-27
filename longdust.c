@@ -4,7 +4,6 @@
 #include <math.h>
 #include "kalloc.h"
 #include "kdq.h"
-#include "ksort.h"
 #include "longdust.h"
 
 /***************
@@ -86,8 +85,6 @@ static unsigned char seq_comp_tab[] = { // not really necessary
  * Internal data structures *
  ****************************/
 
-#define rskey(x) ((x).st)
-KRADIX_SORT_INIT(ld_intv, ld_intv_t, rskey, 8)
 KDQ_INIT(uint32_t)
 
 struct ld_data_s {
@@ -177,6 +174,24 @@ static int32_t ld_extend(ld_data_t *ld)
 	return 0;
 }
 
+static void ld_save_intv(ld_data_t *ld, int64_t st, int64_t en)
+{
+	int64_t k;
+	for (k = ld->n_intv - 1; k >= 0; --k) // intv[] is sorted by end positions
+		if (st > ld->intv[k].en)
+			break;
+	++k;
+	if (k < ld->n_intv) { // overlapping with one (or multiple) saved interval; overwrite the leftmost saved one
+		if (ld->intv[k].st > st) ld->intv[k].st = st;
+		if (ld->intv[k].en < en) ld->intv[k].en = en;
+		ld->n_intv = k + 1;
+	} else { // create a new entry
+		Kgrow(ld->km, ld_intv_t, ld->intv, ld->n_intv, ld->m_intv);
+		ld->intv[ld->n_intv].st = st;
+		ld->intv[ld->n_intv++].en = en;
+	}
+}
+
 void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 {
 	const ld_opt_t *opt = ld->opt;
@@ -213,29 +228,20 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			if (last_i == i - 1 && last_q == 0) j = ld_extend(ld); // test and potentially extend the base at i
 			if (j < 0) j = ld_dust_back(ld, i); // do full dust_back
 		}
-		if (j >= 0) {
-			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1);
-			if (st2 < en) {
+		if (j >= 0) { // LCR found
+			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1); // the start of LCR
+			if (st2 < en) { // overlapping with the active LCR interval
 				if (st < 0 || st2 < st) st = st2;
-			} else {
-				if (st >= 0) {
-					Kgrow(ld->km, ld_intv_t, ld->intv, ld->n_intv, ld->m_intv);
-					ld->intv[ld->n_intv].st = st;
-					ld->intv[ld->n_intv++].en = en;
-				}
+			} else { // not overlapping; save it to intv[]
+				if (st >= 0) ld_save_intv(ld, st, en);
 				st = st2;
 			}
 			en = i + 1;
 			last_i = i, last_q = j;
 		}
 	}
-	if (st >= 0 && en - st >= opt->kmer) {
-		Kgrow(ld->km, ld_intv_t, ld->intv, ld->n_intv, ld->m_intv);
-		ld->intv[ld->n_intv].st = st;
-		ld->intv[ld->n_intv++].en = en;
-	}
+	if (st >= 0) ld_save_intv(ld, st, en);
 	kfree(ld->km, ht);
-	radix_sort_ld_intv(ld->intv, ld->intv + ld->n_intv);
 }
 
 void ld_dust2(ld_data_t *ld, int64_t len, const uint8_t *seq)

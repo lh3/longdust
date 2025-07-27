@@ -1,7 +1,7 @@
 #ifndef LONGDUST_H
 #define LONGDUST_H
 
-#define LD_VERSION "r16"
+#define LD_VERSION "r17"
 
 #include <stdint.h>
 
