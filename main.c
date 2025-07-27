@@ -16,12 +16,16 @@ int main(int argc, char *argv[])
 	ld_data_t *ld;
 
 	ld_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "k:w:d:t:f", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:w:d:t:fv", 0)) >= 0) {
 		if (c == 'k') opt.kmer = atoi(o.arg);
 		else if (c == 'w') opt.ws = atoi(o.arg);
 		else if (c == 't') opt.thres = atof(o.arg);
-		else if (c == 'd') opt.xdrop = atof(o.arg);
+		else if (c == 'd') opt.xdrop_len = atoi(o.arg);
 		else if (c == 'f') for_only = 1;
+		else if (c == 'v') {
+			puts(LD_VERSION);
+			return 0;
+		}
 	}
 	if (argc - o.ind == 0) {
 		fprintf(stderr, "Usage: longdust [options] <in.fa>\n");
@@ -29,8 +33,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -k INT      k-mer length [%d]\n", opt.kmer);
 		fprintf(stderr, "  -w INT      window size [%d]\n", opt.ws);
 		fprintf(stderr, "  -t FLOAT    score threshold [%g]\n", opt.thres);
-		fprintf(stderr, "  -d FLOAT    X-drop [%g]\n", opt.xdrop);
+		fprintf(stderr, "  -d INT      X-drop length [%d]\n", opt.xdrop_len);
 		fprintf(stderr, "  -f          forward strand only\n");
+		fprintf(stderr, "  -v          version number\n");
 		return 1;
 	}
 

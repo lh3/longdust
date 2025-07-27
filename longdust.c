@@ -106,7 +106,7 @@ void ld_opt_init(ld_opt_t *opt)
 	opt->kmer = 6;
 	opt->ws = 1024;
 	opt->thres = 0.6;
-	opt->xdrop = 100.0;
+	opt->xdrop_len = 100;
 }
 
 ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
@@ -137,6 +137,7 @@ void ld_data_destroy(ld_data_t *ld)
 static int32_t ld_dust_back(ld_data_t *ld, int64_t pos) // pos only for debugging
 {
 	const ld_opt_t *opt = ld->opt;
+	double xdrop = opt->thres * opt->xdrop_len;
 	int32_t i, l, max_i;
 	double s, sl, max_sf = 0.0, max_sb = 0.0;
 
@@ -148,7 +149,7 @@ static int32_t ld_dust_back(ld_data_t *ld, int64_t pos) // pos only for debuggin
 		sl = s - ld->f[l];
 		if (sl > max_sb)
 			max_sb = sl, max_i = i;
-		else if (max_sb - sl > opt->xdrop)
+		else if (max_sb - sl > xdrop)
 			break;
 	}
 	if (max_i < 0) return -1;

@@ -1,11 +1,13 @@
 #ifndef LONGDUST_H
 #define LONGDUST_H
 
+#define LD_VERSION "r16"
+
 #include <stdint.h>
 
 typedef struct {
-	int32_t kmer, ws;
-	double thres, xdrop;
+	int32_t kmer, ws, xdrop_len;
+	double thres;
 } ld_opt_t;
 
 typedef struct {
