@@ -120,7 +120,7 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld);
 }
 
-static int32_t ld_dust_back(ld_data_t *ld)
+static int32_t ld_dust_back(ld_data_t *ld, int64_t pos) // pos only for debugging
 {
 	const ld_opt_t *opt = ld->opt;
 	int32_t i, l, max_i;
@@ -147,6 +147,7 @@ static int32_t ld_dust_back(ld_data_t *ld)
 		sl = s - ld->f[l];
 		if (sl >= max_sf) max_sf = sl;
 	}
+	//fprintf(stderr, "[%ld,%ld]:%c\t(%f,%f,%f)\n", (long)(pos-(kdq_size(ld->q)-1-max_i)-(opt->kmer-1)), (long)pos, "ACGT"[kdq_at(ld->q, kdq_size(ld->q)-1)>>1&3], max_sb, max_sf, sl);
 	return sl >= max_sf - 1e-6? max_i : -1;
 }
 
@@ -195,14 +196,14 @@ void ld_dust(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		j = -1;
 		if (++ht[x] > 1) { // no need to call ld_dust_back() if x is a singleton in the window
 			if (last_i == i - 1 && last_q == 0) j = ld_extend(ld); // test and potentially extend the base at i
-			if (j < 0) j = ld_dust_back(ld); // do full dust_back
+			if (j < 0) j = ld_dust_back(ld, i); // do full dust_back
 		}
 		if (j >= 0) {
 			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1);
 			if (st2 < en) {
 				if (st < 0 || st2 < st) st = st2;
 			} else {
-				if (st >= 0 && en - st >= opt->kmer) {
+				if (st >= 0) {
 					Kgrow(ld->km, ld_intv_t, ld->intv, ld->n_intv, ld->m_intv);
 					ld->intv[ld->n_intv].st = st;
 					ld->intv[ld->n_intv++].en = en;
