@@ -2,7 +2,7 @@ CC=			gcc
 CFLAGS=		-g -Wall -Wc++-compat -std=c99 -O2
 CPPFLAGS=
 INCLUDES=
-OBJS=		kalloc.o
+OBJS=		kalloc.o longdust.o
 PROG=		longdust
 LIBS=		-lm -lz
 
@@ -19,7 +19,7 @@ endif
 
 all:$(PROG)
 
-longdust:longdust.o $(OBJS)
+longdust:main.o $(OBJS)
 		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
 clean:
@@ -31,4 +31,5 @@ depend:
 # DO NOT DELETE
 
 kalloc.o: kalloc.h
-longdust.o: kalloc.h kdq.h ksort.h longdust.h ketopt.h kseq.h
+longdust.o: kalloc.h kdq.h ksort.h longdust.h
+main.o: longdust.h ketopt.h kseq.h

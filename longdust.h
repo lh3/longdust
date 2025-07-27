@@ -25,6 +25,7 @@ void ld_data_destroy(ld_data_t *ld);
 
 void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq);
 void ld_dust2(ld_data_t *ld, int64_t len, const uint8_t *seq);
+const ld_intv_t *ld_get_intv(const ld_data_t *ld, int64_t *n);
 
 #ifdef __cplusplus
 }
