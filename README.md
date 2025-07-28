@@ -53,8 +53,8 @@ $`S([j,i'])>S([j,i])`$. This gives an $`O(wL)`$ algorithm. Longdust
 additionally implements a few strategies to speed up the search.
 It also uses BLAST-like X-drop to break at long non-LCR intervals.
 This algorithm would generate slightly different output on the reverse
-complement of the input sequence. Longdust takes the union of intervals
-identified from both strands.
+complement of the input sequence. For strand symmetry like SDUST, longdust
+takes the union of intervals identified from both strands.
 
 [sdust]: https://pubmed.ncbi.nlm.nih.gov/16796549
 [trf]: https://github.com/Benson-Genomics-Lab/TRF
