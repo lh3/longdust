@@ -54,8 +54,8 @@ where
 ```math
 f(\lambda)=e^{-\lambda}\sum_{n=0}^\infty\log(n!)\cdot\frac{\lambda^n}{n!}
 ```
-is calculated numerically. Please the [math notes](tex/notes.tex) for the derivation.
-Given a threshold $`T\gt0`$, introduce
+is calculated numerically. Please see the [math notes](tex/notes.tex) for
+derivation. Given a threshold $`T\gt0`$, introduce
 ```math
 S'_L(x,T)=S_L(x)-T\cdot\ell(x)
 ```
