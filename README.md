@@ -41,7 +41,7 @@ S(x)=\sum_{t\in\kappa(x)}\log c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
 ```
 where
 ```math
-f(\lambda)=e^{-\lambda}\sum_{n=0}^\infty\log n!\cdot\frac{\lambda^n}{n!}
+f(\lambda)=e^{-\lambda}\sum_{n=0}^\infty\log(n!)\cdot\frac{\lambda^n}{n!}
 ```
 is calculated numerically. It finds $x$ such that $`S(x)-t\cdot\ell(x)>0`$ for
 $`\ell(x)\le w`$. At each position $i$, longdust backwardly searches for
