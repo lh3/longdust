@@ -60,10 +60,10 @@ At each position $i$, longdust backwardly searches for
 ```math
 j=\arg\max_{j'\ge i-w} \{S([j',i])-T\cdot\ell([j',i])\}
 ```
-It reports $`[j,i]`$ as an LCR if $`S([j,i])\gt0`$ and there does not exist
-$`i'\lt i`$ such that $`S([j,i'])-T\cdot\ell([j,i'])\gt
-S([j,i])-T\cdot\ell([j,i])`$. We can find $`[j,i]`$ with a backward and then a
-forward pass through window. The time complexity is $`O(wL)`$.
+It reports $`[j,i]`$ as an LCR if $`S([j,i])\gt0`$ and $`\not\exist i'\lt i`$
+such that $`S([j,i'])-T\cdot\ell([j,i'])\gt S([j,i])-T\cdot\ell([j,i])`$. We
+can find $`[j,i]`$ with a backward and then a forward pass through window. The
+time complexity is $`O(wL)`$.
 
 Longdust additionally implements a few strategies to speed up the search. It
 also uses BLAST-like X-drop to break at long non-LCR intervals. This algorithm
