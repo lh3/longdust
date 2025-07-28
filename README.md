@@ -33,10 +33,10 @@ interchangeably.
 
 Given a sequence $x$, SDUST scores its complexity with
 ```math
-S'(x)=\frac{\sum_{t\in\kappa(x)}c_x(t)(c_x(t)-1)/2}{\ell(x)}
+S_D(x)=\frac{\sum_{t\in\kappa(x)}c_x(t)(c_x(t)-1)/2}{\ell(x)}
 ```
 It defines $x$ as a *perfect interval* if the score of any subsequence is no
-greater than $S'(x)$. SDUST hardcodes $k=3$ and reports all $`\le`$64bp perfect
+greater than $S_D(x)$. SDUST hardcodes $k=3$ and reports all $`\le`$64bp perfect
 intervals of score $`\ge T`$ in a genome.
 
 In a sequence of length $w$, there are $O(w^2)$ perfect intervals in the worst
@@ -48,7 +48,7 @@ the genome size. The cubic factor makes SDUST impractical for large $w$.
 
 Longdust scores complexity with
 ```math
-S(x)=\sum_{t\in\kappa(x)}\log\,c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
+S_L(x)=\sum_{t\in\kappa(x)}\log\,c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
 ```
 where
 ```math
@@ -56,14 +56,18 @@ f(\lambda)=e^{-\lambda}\sum_{n=0}^\infty\log(n!)\cdot\frac{\lambda^n}{n!}
 ```
 is calculated numerically. Please the [math notes](tex/notes.tex) for the derivation.
 
+Given a threshold $`T\gt0`$, introduce
+```math
+S'_L(x,T)=S(x)-T\cdot\ell(x)
+```
 At each position $i$, longdust backwardly searches for
 ```math
-j=\arg\max_{j'\ge i-w} \{S([j',i])-T\cdot\ell([j',i])\}
+j=\arg\max_{j'\ge i-w} S'_L([j',i],T)
 ```
-It reports $`[j,i]`$ as an LCR if $`S([j,i])\gt0`$ and $`\not\exist i'\lt i`$
-such that $`S([j,i'])-T\cdot\ell([j,i'])\gt S([j,i])-T\cdot\ell([j,i])`$. We
-can find $`[j,i]`$ with a backward and then a forward pass through window. The
-time complexity is $`O(wL)`$.
+It reports $`[j,i]`$ as an LCR if $`S'_L([j,i],T)\gt0`$ and there does not
+exist $`i'\lt i`$ such that $`S'_L([j,i'],T)\gt S'_L([j,i],T)`$. At each
+position $i$, we can find $`[j,i]`$ with a backward and then a forward pass
+through window $`[i-w,i]`$. The time complexity is $`O(wL)`$.
 
 Longdust additionally implements a few strategies to speed up the search. It
 also uses BLAST-like X-drop to break at long non-LCR intervals. This algorithm
