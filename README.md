@@ -36,11 +36,11 @@ Given a sequence $x$, SDUST scores its complexity with
 S_D(x)=\frac{\sum_{t\in\kappa(x)}c_x(t)(c_x(t)-1)/2}{\ell(x)}
 ```
 It defines $x$ as a *perfect interval* if the score of any subsequence is no
-greater than $S_D(x)$. SDUST hardcodes $k=3$ and reports all $`\le`$64bp perfect
-intervals of score $`\ge T`$ in a genome.
+greater than $`S_D(x)`$. SDUST hardcodes $k=3$ and reports all perfect
+intervals of length $`\le`$64bp and score $`\ge T`$ in a genome.
 
 In a sequence of length $w$, there are $O(w^2)$ perfect intervals in the worst
-case. SDUST may travel these intervals when processing a position. The overall
+case. SDUST may traverse these intervals when processing a position. The overall
 time complexity is thus $`O(w^3L)`$ where $w$ is the window length and $L$ is
 the genome size. The cubic factor makes SDUST impractical for large $w$.
 
@@ -57,19 +57,19 @@ f(\lambda)=e^{-\lambda}\sum_{n=0}^\infty\log(n!)\cdot\frac{\lambda^n}{n!}
 is calculated numerically. Please the [math notes](tex/notes.tex) for the derivation.
 Given a threshold $`T\gt0`$, introduce
 ```math
-S'_L(x,T)=S(x)-T\cdot\ell(x)
+S'_L(x,T)=S_L(x)-T\cdot\ell(x)
 ```
 Longdust reports $`[j,i]`$ such that $`S'_L([j,i],T)>0`$ and no suffix or
 prefix of $`[j,i]`$ is scored higher. This is different from SDUST which also
-requires no internal substring to be scored higher.
+requires no internal substring can be scored higher.
 
 Longdust finds $`[j,i]`$ via a backward and then a forward scan through
 $`[i-w,i]`$ at each genomic position $i$. The time complexity is $`O(wL)`$.
-Longdust additionally implements a few strategies to speed up the search. It
-also uses BLAST-like X-drop to break at long non-LCR intervals. This algorithm
-would generate slightly different output on the reverse complement of the input
-sequence. For strand symmetry like SDUST, longdust takes the union of intervals
-identified from both strands for strand symmetry.
+It additionally implements a few strategies to speed up the search without
+changing the output. It also uses BLAST-like X-drop to break at long non-LCR
+intervals. The longdust algorithm would generate slightly different output on
+the reverse complement of the input sequence. For strand symmetry like SDUST,
+longdust takes the union of intervals identified from both strands.
 
 [sdust]: https://pubmed.ncbi.nlm.nih.gov/16796549
 [trf]: https://github.com/Benson-Genomics-Lab/TRF
