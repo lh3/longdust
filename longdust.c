@@ -148,14 +148,12 @@ static int32_t ld_dust_back(ld_data_t *ld, int64_t pos, const int32_t *win_ht, d
 		sl = s - ld->f[l];
 		if (sl > max_sb) {
 			max_sb = sl, max_i = i;
-		} else if (max_i < 0) { // haven't gone beyond the baseline before
+		} else if (max_i < 0) { // max_sb == 0; haven't gone beyond the baseline before
 			if (max_sb - sl > xdrop1) break;
-		} else { // max_sb > 0.0 in this case
-			if (max_sb - sl > xdrop2) break;
-		}
-		if (max_i < 0) {
 			sw += (x&1? 0 : ld->c[win_ht[x>>1]]) - opt->thres;
 			if (sw < 0.0) break;
+		} else { // max_sb > 0 in this case
+			if (max_sb - sl > xdrop2) break;
 		}
 		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break;
 	}
