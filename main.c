@@ -34,10 +34,13 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -k INT      k-mer length [%d]\n", opt.kmer);
 		fprintf(stderr, "  -w INT      window size [%d]\n", opt.ws);
 		fprintf(stderr, "  -t FLOAT    score threshold [%g]\n", opt.thres);
-		fprintf(stderr, "  -d INT      initial X-drop length [%d]\n", opt.xdrop_len1);
+		fprintf(stderr, "  -d INT      initial X-drop length [same as -w]\n");
 		fprintf(stderr, "  -e INT      extension X-drop length [%d]\n", opt.xdrop_len2);
 		fprintf(stderr, "  -f          forward strand only\n");
 		fprintf(stderr, "  -v          version number\n");
+		fprintf(stderr, "Notes:\n");
+		fprintf(stderr, "  * Recommend w < 4^k for performance, especially given large w\n");
+		fprintf(stderr, "  * Use \"-k6 -w1000 -t.55\" for more relaxed but shorter regions\n");
 		return 1;
 	}
 
