@@ -16,17 +16,28 @@ different focus that other methods are not optmized for.
 
 ## Algorithm
 
+### Notations
+
+Let $`\Sigma`$ be the DNA alphabet. $`x\in\Sigma^*`$ is a DNA string.
+$`t\in\Sigma^k`$ is a $k$-mer. $`\kappa(x)`\subset\Sigma^k`$ is the set of
+$k$-mers in $x$. $`c_x(t)`$ is the number of $k$-mer $t$ in $x$.
+Let $`|x|`$ be the length of $x$ and $\ell(x)=|x|-k+1$ the number of $k$-mers
+in $x$.
+
+Suppose we are working with one long genome string. We use closed interval
+$`[j,i]`$ to represent the substring starting at $j$ and ending at $i$,
+including the end points. We may use "interval" and "subsequence"
+interchangeably.
+
 ### The SDUST algorithm
 
 Given a sequence $x$, SDUST scores its complexity with
 ```math
 S'(x)=\frac{\sum_{t\in\kappa(x)}c_x(t)(c_x(t)-1)/2}{\ell(x)}
 ```
-where $`\kappa(x)`$ is the set of $k$-mers in $x$, $`c_x(t)`$ is the number
-of $k$-mer $t$ in $x$ and $`\ell(x)=|x|-k+1`$ is the number of $k$-mers. SDUST
-by default uses $k=3$. It further defines $x$ as a *perfect interval* if the
-score of any subsequence is no greater than $S'(x)$. SDUST reports all
-$`\le`$64bp perfect intervals of score $`\ge T`$ in a genome.
+It defines $x$ as a *perfect interval* if the score of any subsequence is no
+greater than $S'(x)$. SDUST hardcodes $k=3$ and reports all $`\le`$64bp perfect
+intervals of score $`\ge T`$ in a genome.
 
 In a sequence of length $w$, there are $O(w^2)$ perfect intervals in the worst
 case. SDUST may travel these intervals when processing a position. The overall
@@ -37,24 +48,28 @@ the genome size. The cubic factor makes SDUST impractical for large $w$.
 
 Longdust scores complexity with
 ```math
-S(x)=\sum_{t\in\kappa(x)}\log c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
+S(x)=\sum_{t\in\kappa(x)}\log\,c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
 ```
 where
 ```math
 f(\lambda)=e^{-\lambda}\sum_{n=0}^\infty\log(n!)\cdot\frac{\lambda^n}{n!}
 ```
-is calculated numerically. It finds $x$ such that $`S(x)-t\cdot\ell(x)>0`$ for
-$`\ell(x)\le w`$. At each position $i$, longdust backwardly searches for
+is calculated numerically. Please the [math notes](tex/notes.tex) for the derivation.
+
+At each position $i$, longdust backwardly searches for
 ```math
-j=\arg\max_{j'\ge i-w} S([j',i])
+j=\arg\max_{j'\ge i-w} \{S([j',i])-T\cdot\ell([j',i])\}
 ```
-It reports $`[j,i]`$ as an LCR if there does not exist $`i'<i`$ such that
-$`S([j,i'])>S([j,i])`$. This gives an $`O(wL)`$ algorithm. Longdust
-additionally implements a few strategies to speed up the search.
-It also uses BLAST-like X-drop to break at long non-LCR intervals.
-This algorithm would generate slightly different output on the reverse
-complement of the input sequence. For strand symmetry like SDUST, longdust
-takes the union of intervals identified from both strands.
+It reports $`[j,i]`$ as an LCR if $`S([j,i])\gt0$ and there does not exist
+$`i'\lt i`$ such that $`S([j,i'])-T\cdot\ell([j,i'])\gt
+S([j,i])-T\cdot\ell([j,i])`$. We can find $`[j,i]`$ with a backward and then a
+forward pass through window. The time complexity is $`O(wL)`$.
+
+Longdust additionally implements a few strategies to speed up the search. It
+also uses BLAST-like X-drop to break at long non-LCR intervals. This algorithm
+would generate slightly different output on the reverse complement of the input
+sequence. For strand symmetry like SDUST, longdust takes the union of intervals
+identified from both strands.
 
 [sdust]: https://pubmed.ncbi.nlm.nih.gov/16796549
 [trf]: https://github.com/Benson-Genomics-Lab/TRF
