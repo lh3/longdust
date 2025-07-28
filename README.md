@@ -19,7 +19,7 @@ different focus that other methods are not optmized for.
 ### Notations
 
 Let $`\Sigma`$ be the DNA alphabet. $`x\in\Sigma^*`$ is a DNA string.
-$`t\in\Sigma^k`$ is a $k$-mer. $`\kappa(x)`\subset\Sigma^k`$ is the set of
+$`t\in\Sigma^k`$ is a $k$-mer. $`\kappa(x)\subset\Sigma^k`$ is the set of
 $k$-mers in $x$. $`c_x(t)`$ is the number of $k$-mer $t$ in $x$.
 Let $`|x|`$ be the length of $x$ and $\ell(x)=|x|-k+1$ the number of $k$-mers
 in $x$.
@@ -55,25 +55,21 @@ where
 f(\lambda)=e^{-\lambda}\sum_{n=0}^\infty\log(n!)\cdot\frac{\lambda^n}{n!}
 ```
 is calculated numerically. Please the [math notes](tex/notes.tex) for the derivation.
-
 Given a threshold $`T\gt0`$, introduce
 ```math
 S'_L(x,T)=S(x)-T\cdot\ell(x)
 ```
-At each position $i$, longdust backwardly searches for
-```math
-j=\arg\max_{j'\ge i-w} S'_L([j',i],T)
-```
-It reports $`[j,i]`$ as an LCR if $`S'_L([j,i],T)\gt0`$ and there does not
-exist $`i'\lt i`$ such that $`S'_L([j,i'],T)\gt S'_L([j,i],T)`$. At each
-position $i$, we can find $`[j,i]`$ with a backward and then a forward pass
-through window $`[i-w,i]`$. The time complexity is $`O(wL)`$.
+Longdust reports $`[j,i]`$ such that $`S'_L([j,i],T)>0`$ and no suffix or
+prefix of $`[j,i]`$ is scored higher. This is different from SDUST which also
+requires no internal substring to be scored higher.
 
+Longdust finds $`[j,i]`$ via a backward and then a forward scan through
+$`[i-w,i]`$ at each genomic position $i$. The time complexity is $`O(wL)`$.
 Longdust additionally implements a few strategies to speed up the search. It
 also uses BLAST-like X-drop to break at long non-LCR intervals. This algorithm
 would generate slightly different output on the reverse complement of the input
 sequence. For strand symmetry like SDUST, longdust takes the union of intervals
-identified from both strands.
+identified from both strands for strand symmetry.
 
 [sdust]: https://pubmed.ncbi.nlm.nih.gov/16796549
 [trf]: https://github.com/Benson-Genomics-Lab/TRF
