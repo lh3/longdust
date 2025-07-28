@@ -247,9 +247,11 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 
 		j = -1;
 		ht_sum += ld->c[++ht[x]];
-		if (ht[x] > 1) { // no need to call ld_dust_back() if x is a singleton in the window
-			if (last_i == i - 1 && last_q == 0) j = ld_extend(ld); // test and potentially extend the base at i
-			if (j < 0 && ld_is_back(ld, ht, opt->kmer)) j = ld_dust_back(ld, i, ht, ht_sum); // FIXME: opt->kmer might not be correct in general
+		if (ht[x] > 1) { // no need to call the following if x is a singleton in the window; DON'T test ld_is_back() here!
+			if (last_i == i - 1 && last_q == 0) // test and potentially extend the base at i
+				j = ld_extend(ld);
+			if (j < 0 && ld_is_back(ld, ht, opt->kmer)) // FIXME: opt->kmer might not be correct in general
+				j = ld_dust_back(ld, i, ht, ht_sum);
 		}
 		if (j >= 0) { // LCR found
 			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1); // the start of LCR
