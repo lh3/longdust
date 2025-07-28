@@ -46,7 +46,7 @@ f(\lambda)=e^{-\lambda}\sum_{n=0}^\infty\log n!\cdot\frac{\lambda^n}{n!}
 is calculated numerically. It finds $x$ such that $`S(x)-t\cdot\ell(x)>0`$ for
 $`\ell(x)\le w`$. At each position $i$, longdust backwardly searches for
 ```math
-j=\arg\max_{i-w\le j'\lt i} S([j',i])
+j=\arg\max_{i-w\le j'} S([j',i])
 ```
 It reports $`[j,i]`$ as an LCR if there does not exist $`i'<i`$ such that
 $`S([j,i'])>S([j,i])`$. This gives an $`O(wL)`$ algorithm. Longdust
