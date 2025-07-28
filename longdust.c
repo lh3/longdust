@@ -132,28 +132,32 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld);
 }
 
-static int32_t ld_dust_back(ld_data_t *ld, int64_t pos, double ws_sum) // pos only for debugging
+static int32_t ld_dust_back(ld_data_t *ld, int64_t pos, const int32_t *win_ht, double win_sum)
 {
 	const ld_opt_t *opt = ld->opt;
 	double xdrop1 = opt->thres * opt->xdrop_len1;
 	double xdrop2 = opt->thres * opt->xdrop_len2;
-	int32_t i, l, max_i;
-	double s, sl, max_sf = 0.0, max_sb = 0.0;
+	int32_t i, l, max_i = -1;
+	double s, sl, sw, max_sf = 0.0, max_sb = 0.0;
 
 	// backward
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
-	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = 0.0, max_i = -1; i >= 0; --i, ++l) {
+	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = sw = 0.0; i >= 0; --i, ++l) {
 		uint32_t x = kdq_at(ld->q, i);
 		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
 		sl = s - ld->f[l];
 		if (sl > max_sb) {
 			max_sb = sl, max_i = i;
-		} else if (max_sb == 0.0) { // haven't gone beyond the baseline before
+		} else if (max_i < 0) { // haven't gone beyond the baseline before
 			if (max_sb - sl > xdrop1) break;
 		} else { // max_sb > 0.0 in this case
 			if (max_sb - sl > xdrop2) break;
 		}
-		if (ws_sum - ld->f[l] - l * opt->thres < max_sb) break;
+		if (max_i < 0) {
+			sw += (x&1? 0 : ld->c[win_ht[x>>1]]) - opt->thres;
+			if (sw < 0.0) break;
+		}
+		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break;
 	}
 	if (max_i < 0) return -1;
 
@@ -234,7 +238,7 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		ht_sum += ld->c[++ht[x]];
 		if (ht[x] > 1) { // no need to call ld_dust_back() if x is a singleton in the window
 			if (last_i == i - 1 && last_q == 0) j = ld_extend(ld); // test and potentially extend the base at i
-			if (j < 0) j = ld_dust_back(ld, i, ht_sum); // do full dust_back
+			if (j < 0) j = ld_dust_back(ld, i, ht, ht_sum); // do full dust_back
 		}
 		if (j >= 0) { // LCR found
 			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1); // the start of LCR
