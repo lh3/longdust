@@ -103,7 +103,7 @@ void ld_opt_init(ld_opt_t *opt)
 	opt->kmer = 6;
 	opt->ws = 1024;
 	opt->thres = 0.6;
-	opt->xdrop_len1 = 200;
+	opt->xdrop_len1 = 1024;
 	opt->xdrop_len2 = 50;
 }
 
@@ -179,7 +179,20 @@ static int32_t ld_extend(ld_data_t *ld)
 	if (x&1) return -1;
 	diff = ld->c[ld->ht[x>>1] + 1] - (ld->f[l + 1] - ld->f[l]);
 	if (diff < ld->opt->thres) return -1; // if this doesn't increase score, don't extend
+	++ld->ht[x>>1];
 	return 0;
+}
+
+static int32_t ld_is_back(const ld_data_t *ld, const int32_t *ht, int32_t max_step)
+{
+	int32_t i, j;
+	double s = 0.0;
+	for (i = kdq_size(ld->q) - 1, j = 0; i >= 0 && j < max_step; --i, ++j) {
+		uint32_t x = kdq_at(ld->q, i);
+		s += (x&1? 0 : ld->c[ht[x>>1]]) - ld->opt->thres;
+		if (s < 0.0) return 0;
+	}
+	return 1;
 }
 
 static void ld_save_intv(ld_data_t *ld, int64_t st, int64_t en)
@@ -236,7 +249,7 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		ht_sum += ld->c[++ht[x]];
 		if (ht[x] > 1) { // no need to call ld_dust_back() if x is a singleton in the window
 			if (last_i == i - 1 && last_q == 0) j = ld_extend(ld); // test and potentially extend the base at i
-			if (j < 0) j = ld_dust_back(ld, i, ht, ht_sum); // do full dust_back
+			if (j < 0 && ld_is_back(ld, ht, opt->kmer)) j = ld_dust_back(ld, i, ht, ht_sum); // FIXME: opt->kmer might not be correct in general
 		}
 		if (j >= 0) { // LCR found
 			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1); // the start of LCR
