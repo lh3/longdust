@@ -132,7 +132,7 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld);
 }
 
-static int32_t ld_dust_back(ld_data_t *ld, int64_t pos) // pos only for debugging
+static int32_t ld_dust_back(ld_data_t *ld, int64_t pos, double ws_sum) // pos only for debugging
 {
 	const ld_opt_t *opt = ld->opt;
 	double xdrop1 = opt->thres * opt->xdrop_len1;
@@ -153,6 +153,7 @@ static int32_t ld_dust_back(ld_data_t *ld, int64_t pos) // pos only for debuggin
 		} else { // max_sb > 0.0 in this case
 			if (max_sb - sl > xdrop2) break;
 		}
+		if (ws_sum - ld->f[l] - l * opt->thres < max_sb) break;
 	}
 	if (max_i < 0) return -1;
 
@@ -204,6 +205,7 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 	int64_t i, l, st = -1, en = -1;
 	int64_t last_i = -1, last_q = -1; // last_i: i of last successful LCR; last_q: pos in queue when last_i is set
 	int32_t *ht;
+	double ht_sum = 0.0;
 
 	ld->n_intv = 0;
 	ld->q->front = ld->q->count = 0;
@@ -221,7 +223,7 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		if (kdq_size(ld->q) >= opt->ws) { // remove from the queue
 			uint32_t *p;
 			p = kdq_shift(uint32_t, ld->q);
-			if ((*p&1) == 0) --ht[*p>>1];
+			if ((*p&1) == 0) ht_sum -= ld->c[ht[*p>>1]--];
 			if (last_q == 0) --ld->ht[*p>>1];
 			else --last_q; // this needs to be updated as the queue is shifted
 		}
@@ -229,9 +231,10 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		if (ambi) continue;
 
 		j = -1;
-		if (++ht[x] > 1) { // no need to call ld_dust_back() if x is a singleton in the window
+		ht_sum += ld->c[++ht[x]];
+		if (ht[x] > 1) { // no need to call ld_dust_back() if x is a singleton in the window
 			if (last_i == i - 1 && last_q == 0) j = ld_extend(ld); // test and potentially extend the base at i
-			if (j < 0) j = ld_dust_back(ld, i); // do full dust_back
+			if (j < 0) j = ld_dust_back(ld, i, ht_sum); // do full dust_back
 		}
 		if (j >= 0) { // LCR found
 			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1); // the start of LCR
