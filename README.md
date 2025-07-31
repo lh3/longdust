@@ -8,7 +8,7 @@ units.
 
 Longdust also overlaps with tandem repeat finders (e.g. [TRF][trf],
 [TANTAN][tantan] and [ULTRA][ultra]) in functionality. Nonetheless, it is not
-tuned for tandem repeats with two or three copies, but instead finds regions
+tuned for tandem repeats with two or three copies, but may report low-complexity regions
 without clear tandem structure. Longdust complements TRF etc to some extent.
 
 ## Comparison to other tools
