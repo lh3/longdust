@@ -3,19 +3,19 @@
 Longdust identifies long highly repetitive STRs, VNTRs, satellite DNA and other
 low-complexity regions (LCRs) in a genome. It is motivated by and follows a
 similar rationale to [SDUST][sdust]. Unlike SDUST which is limited to short
-windows, longdust can find centromeric repeats and VNTRs with long repeats
+windows, longdust can find centromeric satellite and VNTRs with long repeat
 units.
 
 Longdust also overlaps with tandem repeat finders (e.g. [TRF][trf],
-[TANTAN][tantan] and [ULTRA][ultra]) in functionality. Nonetheless, it misses
-tandem repeats with two or three copies but intead finds regions without clear
-tandem structure. Longdust complements TRF etc to some extent.
+[TANTAN][tantan] and [ULTRA][ultra]) in functionality. Nonetheless, it is not
+tuned for tandem repeats with two or three copies, but instead finds regions
+without clear tandem structure. Longdust complements TRF etc to some extent.
 
 ## Comparison to other tools
 
 Longdust finds 280.4Mb of LCRs from the T2T-CHM13 analysis set. 228.4Mb of them
 overlap with satellites (plus ~5Mb flanking) annotated by the T2T consortium,
-33.1Mb of the remainder (52.0Mb) overlap with TRF (2 7 7 80 10 50 500 -l12),
+33.1Mb of the remainder (52.0Mb) overlap with TRF (2 7 7 80 10 50 500 -l12), and
 14.7Mb of the rest (18.9Mb) with SDUST (-t30). Only 4.1Mb is left. Most
 longdust LCRs are found by other tools collectively.
 
@@ -30,7 +30,7 @@ satellite, TRF, SDUST and longdust. Even if we reduce the score threshold from
 On performance, longdust and TANTAN both ran for ~35 minutes. SDUST was the fastest
 at 4 minutes only. They all used less than 1.5GB memory. TRF took nearly 13
 hours for T2T-CHM13. Setting "2 5 7 80 10 30 2000 -l20" took 19 hours and 12GB;
-reducing `-l` to 12 did not output anything in 40 hours. TRF was much faster on
+reducing `-l` to 12 did not yield any output in 40 hours. TRF was much faster on
 GRCh38 due to the lack of long satellite arrays.
 
 ## Algorithm
