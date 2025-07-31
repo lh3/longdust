@@ -2,11 +2,31 @@
 \usepackage[margin=1in]{geometry}
 \begin{document}
 
+\section{Notations}
+
 Let $\Sigma=\{{\rm A},{\rm C},{\rm G},{\rm T}\}$ be the DNA alphabet.
 $x\in\Sigma^*$ is a DNA string.
 $t\in\Sigma^k$ is a $k$-mer.
 For $|x|\ge k$, $c_x(t)$ is the occurrence of $k$-mer $t$ in $x$;
 $\ell(x)=\sum_t c_x(t)=|x|-k+1$ is the total number of $k$-mers in $x$.
+We write $\vec{c}_x$ for the count array over all $k$-mers
+and $\kappa(x)$ for the set of distinct $k$-mers in $x$.
+
+In this note, we assume there is only one long genome string.
+We use closed interval $[j,i]$ to represent the substring starting at $j$ and ending at $i$,
+including the end points $i$ and $j$.
+We may use ``interval'' and ``subsequence'' interchangeably.
+
+\section{Defining complexity/simplicity}
+
+The simplicity of string $x$ is measured by function $S(\vec{c}_x)$.
+Importantly, the function only depends on the $k$-mer counts but not other properties of $x$.
+We may also write $S(x)$ as the score function for convenience.
+We say $x$ is a \emph{perfect interval} if no substring of $x$ is scored higher than $S(x)$;
+$x$ is a \emph{good interval} if no prefix or suffix of $x$ is scored higher than $S(x)$.
+
+\section{Score function}
+
 $c_x(t)\sim{\rm Poisson}(\lambda)$
 where $\lambda=\ell(x)/4^k$.
 Let
