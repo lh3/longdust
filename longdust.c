@@ -103,8 +103,7 @@ void ld_opt_init(ld_opt_t *opt)
 	opt->kmer = 7;
 	opt->ws = 5000;
 	opt->thres = 0.6;
-	opt->xdrop_len1 = 0;
-	opt->xdrop_len2 = 50;
+	opt->xdrop_len = 50;
 }
 
 ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
@@ -135,8 +134,7 @@ void ld_data_destroy(ld_data_t *ld)
 static int32_t ld_dust_back(ld_data_t *ld, int64_t pos, const int32_t *win_ht, double win_sum)
 {
 	const ld_opt_t *opt = ld->opt;
-	double xdrop1 = opt->thres * (opt->xdrop_len1 > 0? opt->xdrop_len1 : opt->ws);
-	double xdrop2 = opt->thres * opt->xdrop_len2;
+	double xdrop = opt->thres * opt->xdrop_len;
 	int32_t i, l, max_i = -1;
 	double s, sl, sw, max_sf = 0.0, max_sb = 0.0;
 
@@ -149,11 +147,10 @@ static int32_t ld_dust_back(ld_data_t *ld, int64_t pos, const int32_t *win_ht, d
 		if (sl > max_sb) {
 			max_sb = sl, max_i = i;
 		} else if (max_i < 0) { // max_sb == 0; haven't gone beyond the baseline before
-			if (max_sb - sl > xdrop1) break;
 			sw += (x&1? 0 : ld->c[win_ht[x>>1]]) - opt->thres;
 			if (sw < 0.0) break;
 		} else { // max_sb > 0 in this case
-			if (max_sb - sl > xdrop2) break;
+			if (max_sb - sl > xdrop) break;
 		}
 		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break;
 	}
