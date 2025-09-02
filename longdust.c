@@ -104,6 +104,7 @@ void ld_opt_init(ld_opt_t *opt)
 	opt->ws = 5000;
 	opt->thres = 0.6;
 	opt->xdrop_len = 50;
+	opt->exact = 0;
 }
 
 ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
@@ -129,6 +130,42 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld->c); kfree(km, ld->f);
 	kfree(km, ld->ht);
 	kfree(km, ld);
+}
+
+static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos)
+{
+	const ld_opt_t *opt = ld->opt;
+	double xdrop = opt->thres * opt->xdrop_len;
+	int32_t i, l, max_i = -1, ret = -1;
+	double s, sl, max_sb = 0.0, last_sl = -1.0;
+	int32_t *ht_for;
+
+	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
+	ht_for = Kcalloc(ld->km, int32_t, 1U<<2*opt->kmer);
+	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = 0.0; i >= -1; --i, ++l) { // backward
+		uint32_t x = i >= 0? kdq_at(ld->q, i) : 1;
+		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
+		sl = s - ld->f[l];
+		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb) {
+			int32_t j, lj;
+			double sj = 0.0, slj = 0.0, max_sf = 0.0;
+			memset(ht_for, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
+			for (j = i + 1, lj = 1; j < kdq_size(ld->q); ++j, ++lj) { // forward
+				uint32_t x = kdq_at(ld->q, j);
+				sj += (x&1? 0 : ld->c[++ht_for[x>>1]]) - opt->thres;
+				slj = sj - ld->f[lj];
+				if (slj >= max_sf) max_sf = slj;
+			}
+			//if (pos == 1553 || pos == 1554) fprintf(stderr, "pos=%ld; %f,%f,%f; %d\n", (long)pos, max_sb, max_sf, slj, lj);
+			if (slj >= max_sf - 1e-6)
+				ret = i + 1;
+		}
+		if (sl > max_sb) max_sb = sl, max_i = i;
+		else if (max_i >= 0 && max_sb - sl > xdrop) break;
+		last_sl = sl;
+	}
+	kfree(ld->km, ht_for);
+	return ret;
 }
 
 static int32_t ld_dust_back(ld_data_t *ld, int64_t pos, const int32_t *win_ht, double win_sum)
@@ -241,15 +278,23 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		}
 		kdq_push(uint32_t, ld->q, x<<1|ambi);
 		if (ambi) continue;
-
-		j = -1;
 		ht_sum += ld->c[++ht[x]];
+
+		#if 0
+		j = ld_dust_back_exact(ld, i);
+		#else
+		j = -1;
 		if (ht[x] > 1) { // no need to call the following if x is a singleton in the window; DON'T test ld_is_back() here!
 			if (last_i == i - 1 && last_q == 0) // test and potentially extend the base at i
 				j = ld_extend(ld);
-			if (j < 0 && ld_is_back(ld, ht, opt->kmer)) // FIXME: opt->kmer might not be correct in general
-				j = ld_dust_back(ld, i, ht, ht_sum);
+			if (j < 0) {
+				if (opt->exact) // exact but slow algorithm
+					j = ld_dust_back_exact(ld, i);
+				else if (ld_is_back(ld, ht, opt->kmer)) // FIXME: opt->kmer might not be correct in general (forgot why I said that...)
+					j = ld_dust_back(ld, i, ht, ht_sum);
+			}
 		}
+		#endif
 		if (j >= 0) { // LCR found
 			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1); // the start of LCR
 			if (st2 < en) { // overlapping with the active LCR interval
