@@ -279,7 +279,8 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 
 		j = -1;
 		if (ht[x] > 1) { // no need to call the following if x is a singleton in the window; DON'T test ld_is_back() here!
-			if (last_i == i - 1 && last_q == 0) // test and potentially extend the base at i, ONLY when the full window is LCR
+			double swin = ht_sum - ld->f[kdq_size(ld->q)] - kdq_size(ld->q) * opt->thres; // this is the full window score
+			if (last_i == i - 1 && last_q == 0 && swin > 0.0) // test and potentially extend the base at i, ONLY when the full window is LCR
 				j = ld_extend(ld);
 			if (j < 0 && ld_do_backward(ld, ht, ld->max_test))
 				j = ld_dust_backward(ld, i, ht, ht_sum);
