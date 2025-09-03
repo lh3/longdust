@@ -10,9 +10,12 @@
  * Compute f() *
  ***************/
 
+#define LD_E  2.71828182845904523536028747135266250
+#define LD_PI 3.14159265358979323846264338327950288
+
 static double ld_f_large(double lambda) // with Sterling's approximation
 {
-	double x = 0.5 * log(2.0 * M_PI * M_E * lambda) - 1.0 / 12.0 / lambda * (1.0 + 0.5 / lambda + 19.0 / 30.0 / lambda / lambda);
+	double x = 0.5 * log(2.0 * LD_PI * LD_E * lambda) - 1.0 / 12.0 / lambda * (1.0 + 0.5 / lambda + 19.0 / 30.0 / lambda / lambda);
 	x += lambda * (log(lambda) - 1.0);
 	return x;
 }
