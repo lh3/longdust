@@ -165,7 +165,6 @@ static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos)
 				slj = sj - ld->f[lj];
 				if (slj >= max_sf) max_sf = slj;
 			}
-			//if (pos == 1553 || pos == 1554) fprintf(stderr, "pos=%ld; %f,%f,%f; %d\n", (long)pos, max_sb, max_sf, slj, lj);
 			if (slj >= max_sf - 1e-6)
 				ret = i + 1;
 		}
