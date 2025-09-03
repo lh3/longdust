@@ -188,6 +188,7 @@ static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos, const int32_t *win
 		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break;
 		last_sl = sl;
 	}
+	if (ret > 0) ld_dust_for_done(ld, ret, ld->ht); // we need to sync ld->ht[] for ld_extend()
 	return ret;
 }
 
