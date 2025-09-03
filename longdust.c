@@ -109,7 +109,7 @@ void ld_opt_init(ld_opt_t *opt)
 	opt->ws = 5000;
 	opt->thres = 0.6;
 	opt->xdrop_len = 50;
-	opt->exact = 0;
+	opt->approx = 0;
 }
 
 ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
@@ -165,7 +165,7 @@ static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, int32_t *ht)
 static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_ht, double win_sum)
 {
 	const ld_opt_t *opt = ld->opt;
-	double xdrop = opt->thres * opt->xdrop_len;
+	double xdrop = opt->thres * (opt->xdrop_len > 0? opt->xdrop_len : opt->ws);
 	int32_t i, l, max_i = -1, max_end;
 	double s, sl, sw, max_sb = 0.0, last_sl = -1.0;
 
@@ -196,7 +196,7 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 		if (j < max_end) continue;
 		k = ld_dust_forward(ld, j, ld->ht);
 		if (k == kdq_size(ld->q) - 1) return j;
-		if (!opt->exact) break; // in the approximate mode, do one forward pass only
+		if (opt->approx) break; // in the approximate mode, do one forward pass only
 		max_end = k;
 	}
 	return -1;

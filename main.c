@@ -16,12 +16,12 @@ int main(int argc, char *argv[])
 	ld_data_t *ld;
 
 	ld_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "k:w:e:t:fvs", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:w:e:t:fva", 0)) >= 0) {
 		if (c == 'k') opt.kmer = atoi(o.arg);
 		else if (c == 'w') opt.ws = atoi(o.arg);
 		else if (c == 't') opt.thres = atof(o.arg);
 		else if (c == 'e') opt.xdrop_len = atoi(o.arg);
-		else if (c == 's') opt.exact = 1;
+		else if (c == 'a') opt.approx = 1;
 		else if (c == 'f') for_only = 1;
 		else if (c == 'v') {
 			puts(LD_VERSION);
@@ -34,9 +34,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -k INT      k-mer length [%d]\n", opt.kmer);
 		fprintf(stderr, "  -w INT      window size [%d]\n", opt.ws);
 		fprintf(stderr, "  -t FLOAT    score threshold [%g]\n", opt.thres);
-		fprintf(stderr, "  -e INT      extension X-drop length [%d]\n", opt.xdrop_len);
+		fprintf(stderr, "  -e INT      extension X-drop length (0 to disable) [%d]\n", opt.xdrop_len);
 		fprintf(stderr, "  -f          forward strand only\n");
-		fprintf(stderr, "  -s          slooow mode for testing\n");
+		fprintf(stderr, "  -a          approximate mode\n");
 		fprintf(stderr, "  -v          version number\n");
 		fprintf(stderr, "Notes:\n");
 		fprintf(stderr, "  * Recommend w < 4^k for performance, especially given large w\n");
