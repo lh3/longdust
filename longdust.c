@@ -294,9 +294,6 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		if (ambi) continue;
 		ht_sum += ld->c[++ht[x]];
 
-		#if 0
-		j = ld_dust_back_exact(ld, i);
-		#else
 		j = -1;
 		if (ht[x] > 1) { // no need to call the following if x is a singleton in the window; DON'T test ld_is_back() here!
 			if (last_i == i - 1 && last_q == 0) // test and potentially extend the base at i
@@ -304,7 +301,6 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			if (j < 0 && ld_is_back(ld, ht, ld->max_test))
 				j = opt->exact? ld_dust_back_exact(ld, i, ht, ht_sum) : ld_dust_back(ld, i, ht, ht_sum);
 		}
-		#endif
 		if (j >= 0) { // LCR found
 			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1); // the start of LCR
 			if (st2 < en) { // overlapping with the active LCR interval

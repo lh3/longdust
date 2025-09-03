@@ -1,5 +1,5 @@
 CC=			gcc
-CFLAGS=		-g -std=c99 -Wall -Wc++-compat -O2
+CFLAGS=		-g -std=c99 -Wall -Wc++-compat -O3
 CPPFLAGS=
 INCLUDES=
 OBJS=		kalloc.o longdust.o
