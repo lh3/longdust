@@ -177,7 +177,7 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 		sl = s - ld->f[l]; // this is the score
 		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb) // store positions where forward may be needed
 			ld->for_pos[ld->n_for_pos++] = i + 1;
-		if (sl > max_sb) {
+		if (sl >= max_sb) {
 			max_sb = sl, max_i = i;
 		} else if (max_i < 0) {
 			sw += (x&1? 0 : ld->c[win_ht[x>>1]]) - opt->thres;
