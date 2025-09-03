@@ -171,8 +171,8 @@ static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos, const int32_t *win
 
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
 	ld->n_for_pos = 0;
-	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = sw = 0.0; i >= -1; --i, ++l) { // backward
-		uint32_t x = i >= 0? kdq_at(ld->q, i) : 1;
+	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = sw = 0.0; i >= 0; --i, ++l) { // backward
+		uint32_t x = kdq_at(ld->q, i);
 		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
 		sl = s - ld->f[l];
 		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb)
@@ -188,6 +188,8 @@ static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos, const int32_t *win
 		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break;
 		last_sl = sl;
 	}
+	if (max_i >= 0 && (ld->n_for_pos == 0 || max_i < ld->for_pos[ld->n_for_pos - 1])) // this may happen when the max_sb is achieved at the last cycle
+		ld->for_pos[ld->n_for_pos++] = max_i;
 	for (i = ld->n_for_pos - 1, max_end = -1; i >= 0; --i) { // forward
 		int32_t k, j = ld->for_pos[i];
 		if (j < max_end) continue;
