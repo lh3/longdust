@@ -121,7 +121,7 @@ ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
 	ld->ht = Kcalloc(km, int32_t, 1U<<2*opt->kmer);
 	if (opt->exact)
 		ld->ht_for = Kcalloc(km, int32_t, 1U<<2*opt->kmer);
-	ld->f = ld_cal_f(km, opt->kmer, opt->ws);
+	ld->f = ld_cal_f(km, opt->kmer, opt->ws + 1);
 	ld->c = Kcalloc(km, double, opt->ws + 1);
 	for (i = 2; i <= opt->ws; ++i)
 		ld->c[i] = log(i);
@@ -188,7 +188,7 @@ static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos, const int32_t *win
 		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break;
 		last_sl = sl;
 	}
-	if (ret > 0) ld_dust_for_done(ld, ret, ld->ht); // we need to sync ld->ht[] for ld_extend()
+	if (ret > 0) ld_dust_for_done(ld, ret, ld->ht); // this is not necessary as ld_extend() is only applied to full window
 	return ret;
 }
 
