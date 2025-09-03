@@ -144,17 +144,17 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld);
 }
 
-static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos)
+static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos, const int32_t *win_ht, double win_sum)
 {
 	const ld_opt_t *opt = ld->opt;
 	double xdrop = opt->thres * opt->xdrop_len;
 	int32_t i, l, max_i = -1, ret = -1;
-	double s, sl, max_sb = 0.0, last_sl = -1.0;
+	double s, sl, sw, max_sb = 0.0, last_sl = -1.0;
 	int32_t *ht_for;
 
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
 	ht_for = Kcalloc(ld->km, int32_t, 1U<<2*opt->kmer);
-	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = 0.0; i >= -1; --i, ++l) { // backward
+	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = sw = 0.0; i >= -1; --i, ++l) { // backward
 		uint32_t x = i >= 0? kdq_at(ld->q, i) : 1;
 		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
 		sl = s - ld->f[l];
@@ -171,8 +171,15 @@ static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos)
 			if (slj >= max_sf - 1e-6)
 				ret = i + 1;
 		}
-		if (sl > max_sb) max_sb = sl, max_i = i;
-		else if (max_i >= 0 && max_sb - sl > xdrop) break;
+		if (sl > max_sb) {
+			max_sb = sl, max_i = i;
+		} else if (max_i < 0) {
+			sw += (x&1? 0 : ld->c[win_ht[x>>1]]) - opt->thres;
+			if (sw < 0.0) break;
+		} else {
+			if (max_sb - sl > xdrop) break;
+		}
+		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break;
 		last_sl = sl;
 	}
 	kfree(ld->km, ht_for);
@@ -299,7 +306,7 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			if (last_i == i - 1 && last_q == 0) // test and potentially extend the base at i
 				j = ld_extend(ld);
 			if (j < 0 && ld_is_back(ld, ht, ld->max_test))
-				j = opt->exact? ld_dust_back_exact(ld, i) : ld_dust_back(ld, i, ht, ht_sum);
+				j = opt->exact? ld_dust_back_exact(ld, i, ht, ht_sum) : ld_dust_back(ld, i, ht, ht_sum);
 		}
 		#endif
 		if (j >= 0) { // LCR found
