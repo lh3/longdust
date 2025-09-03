@@ -93,6 +93,7 @@ struct ld_data_s {
 	double *f, *c;
 	kdq_t(uint32_t) *q;
 	int32_t *ht;
+	int32_t max_test;
 	// output
 	int64_t n_intv, m_intv;
 	ld_intv_t *intv;
@@ -110,6 +111,7 @@ void ld_opt_init(ld_opt_t *opt)
 ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
 {
 	int32_t i;
+	double s, sl;
 	ld_data_t *ld;
 	ld = Kcalloc(km, ld_data_t, 1);
 	ld->opt = opt;
@@ -119,6 +121,13 @@ ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
 	for (i = 2; i <= opt->ws; ++i)
 		ld->c[i] = log(i);
 	ld->q = kdq_init(uint32_t, km);
+	// calculate min_test, the max step used in ld_is_back()
+	for (i = 1, s = 0.0; i < opt->ws; ++i) { // i <- minimum j such that \sum_{c=1}^j {\log(c) - T} > 0
+		s += ld->c[i] - opt->thres;
+		sl = s - ld->f[i];
+		if (sl > 0.0) break;
+	} // here, i-1+k is the minimum detectable homopolymer length
+	ld->max_test = (int)(i * log(i) / opt->thres);
 	return ld;
 }
 
@@ -290,7 +299,7 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			if (j < 0) {
 				if (opt->exact) // exact but slow algorithm
 					j = ld_dust_back_exact(ld, i);
-				else if (ld_is_back(ld, ht, opt->kmer)) // FIXME: opt->kmer might not be correct in general (forgot why I said that...)
+				else if (ld_is_back(ld, ht, ld->max_test))
 					j = ld_dust_back(ld, i, ht, ht_sum);
 			}
 		}
