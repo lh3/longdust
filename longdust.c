@@ -144,6 +144,21 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld);
 }
 
+static int32_t ld_dust_for(ld_data_t *ld, int32_t i0, int32_t *ht)
+{
+	const ld_opt_t *opt = ld->opt;
+	int32_t i, l;
+	double s, sl, max_sf = 0.0;
+	memset(ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
+	for (i = i0, l = 1, s = sl = 0.0; i < kdq_size(ld->q); ++i, ++l) {
+		uint32_t x = kdq_at(ld->q, i);
+		s += (x&1? 0 : ld->c[++ht[x>>1]]) - opt->thres;
+		sl = s - ld->f[l];
+		if (sl >= max_sf) max_sf = sl;
+	}
+	return sl >= max_sf - 1e-6? i0 : -1;
+}
+
 static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos, const int32_t *win_ht, double win_sum)
 {
 	const ld_opt_t *opt = ld->opt;
@@ -158,19 +173,8 @@ static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos, const int32_t *win
 		uint32_t x = i >= 0? kdq_at(ld->q, i) : 1;
 		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
 		sl = s - ld->f[l];
-		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb) {
-			int32_t j, lj;
-			double sj = 0.0, slj = 0.0, max_sf = 0.0;
-			memset(ht_for, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
-			for (j = i + 1, lj = 1; j < kdq_size(ld->q); ++j, ++lj) { // forward
-				uint32_t x = kdq_at(ld->q, j);
-				sj += (x&1? 0 : ld->c[++ht_for[x>>1]]) - opt->thres;
-				slj = sj - ld->f[lj];
-				if (slj >= max_sf) max_sf = slj;
-			}
-			if (slj >= max_sf - 1e-6)
-				ret = i + 1;
-		}
+		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb)
+			ret = ld_dust_for(ld, i + 1, ht_for);
 		if (sl > max_sb) {
 			max_sb = sl, max_i = i;
 		} else if (max_i < 0) {
@@ -191,7 +195,7 @@ static int32_t ld_dust_back(ld_data_t *ld, int64_t pos, const int32_t *win_ht, d
 	const ld_opt_t *opt = ld->opt;
 	double xdrop = opt->thres * opt->xdrop_len;
 	int32_t i, l, max_i = -1;
-	double s, sl, sw, max_sf = 0.0, max_sb = 0.0;
+	double s, sl, sw, max_sb = 0.0;
 
 	// backward
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
@@ -210,17 +214,7 @@ static int32_t ld_dust_back(ld_data_t *ld, int64_t pos, const int32_t *win_ht, d
 		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break;
 	}
 	if (max_i < 0) return -1;
-
-	// forward
-	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
-	for (i = max_i, l = 1, s = sl = 0.0; i < kdq_size(ld->q); ++i, ++l) {
-		uint32_t x = kdq_at(ld->q, i);
-		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
-		sl = s - ld->f[l];
-		if (sl >= max_sf) max_sf = sl;
-	}
-	//fprintf(stderr, "[%ld,%ld]:%c\t(%f,%f,%f)\n", (long)(pos-(kdq_size(ld->q)-1-max_i)-(opt->kmer-1)), (long)pos, "ACGT"[kdq_at(ld->q, kdq_size(ld->q)-1)>>1&3], max_sb, max_sf, sl);
-	return sl >= max_sf - 1e-6? max_i : -1;
+	return ld_dust_for(ld, max_i, ld->ht);
 }
 
 static int32_t ld_extend(ld_data_t *ld)
