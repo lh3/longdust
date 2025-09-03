@@ -126,7 +126,7 @@ ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
 		ld->c[i] = log(i);
 	ld->q = kdq_init(uint32_t, km);
 	ld->for_pos = Kcalloc(km, int32_t, opt->ws + 1);
-	// calculate min_test, the max step used in ld_is_back()
+	// calculate min_test, the max step used in ld_do_backward()
 	for (i = 1, s = 0.0; i < opt->ws; ++i) { // i <- minimum j such that \sum_{c=1}^j {\log(c) - T} > 0
 		s += ld->c[i] - opt->thres;
 		sl = s - ld->f[i];
@@ -147,7 +147,7 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld);
 }
 
-static int32_t ld_dust_for(ld_data_t *ld, int32_t i0, int32_t *ht)
+static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, int32_t *ht)
 {
 	const ld_opt_t *opt = ld->opt;
 	int32_t max_i = -1, i, l;
@@ -162,7 +162,7 @@ static int32_t ld_dust_for(ld_data_t *ld, int32_t i0, int32_t *ht)
 	return max_i;
 }
 
-static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos, const int32_t *win_ht, double win_sum)
+static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_ht, double win_sum)
 {
 	const ld_opt_t *opt = ld->opt;
 	double xdrop = opt->thres * opt->xdrop_len;
@@ -174,57 +174,32 @@ static int32_t ld_dust_back_exact(ld_data_t *ld, int64_t pos, const int32_t *win
 	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = sw = 0.0; i >= 0; --i, ++l) { // backward
 		uint32_t x = kdq_at(ld->q, i);
 		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
-		sl = s - ld->f[l];
-		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb)
+		sl = s - ld->f[l]; // this is the score
+		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb) // store positions where forward may be needed
 			ld->for_pos[ld->n_for_pos++] = i + 1;
 		if (sl > max_sb) {
 			max_sb = sl, max_i = i;
 		} else if (max_i < 0) {
 			sw += (x&1? 0 : ld->c[win_ht[x>>1]]) - opt->thres;
-			if (sw < 0.0) break;
+			if (sw < 0.0) break; // in this case, the forward pass won't reach _pos_
 		} else {
-			if (max_sb - sl > xdrop) break;
+			if (max_sb - sl > xdrop) break; // X-drop
 		}
-		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break;
+		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break; // in this case, we won't get a higher score even if we reach i==0
 		last_sl = sl;
 	}
-	if (max_i >= 0 && (ld->n_for_pos == 0 || max_i < ld->for_pos[ld->n_for_pos - 1])) // this may happen when the max_sb is achieved at the last cycle
+	if (max_i < 0) return -1;
+	if (ld->n_for_pos == 0 || max_i < ld->for_pos[ld->n_for_pos - 1]) // this may happen when the max_sb is achieved at the last cycle
 		ld->for_pos[ld->n_for_pos++] = max_i;
 	for (i = ld->n_for_pos - 1, max_end = -1; i >= 0; --i) { // forward
 		int32_t k, j = ld->for_pos[i];
 		if (j < max_end) continue;
-		k = ld_dust_for(ld, j, ld->ht);
+		k = ld_dust_forward(ld, j, ld->ht);
 		if (k == kdq_size(ld->q) - 1) return j;
+		if (!opt->exact) break; // in the approximate mode, do one forward pass only
 		max_end = k;
 	}
 	return -1;
-}
-
-static int32_t ld_dust_back(ld_data_t *ld, int64_t pos, const int32_t *win_ht, double win_sum)
-{
-	const ld_opt_t *opt = ld->opt;
-	double xdrop = opt->thres * opt->xdrop_len;
-	int32_t i, l, max_i = -1;
-	double s, sl, sw, max_sb = 0.0;
-
-	// backward
-	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
-	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = sw = 0.0; i >= 0; --i, ++l) {
-		uint32_t x = kdq_at(ld->q, i);
-		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
-		sl = s - ld->f[l];
-		if (sl > max_sb) {
-			max_sb = sl, max_i = i;
-		} else if (max_i < 0) { // max_sb == 0; haven't gone beyond the baseline before
-			sw += (x&1? 0 : ld->c[win_ht[x>>1]]) - opt->thres;
-			if (sw < 0.0) break;
-		} else { // max_sb > 0 in this case
-			if (max_sb - sl > xdrop) break;
-		}
-		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break;
-	}
-	if (max_i < 0) return -1;
-	return ld_dust_for(ld, max_i, ld->ht) == kdq_size(ld->q) - 1? max_i : -1;
 }
 
 static int32_t ld_extend(ld_data_t *ld)
@@ -239,7 +214,7 @@ static int32_t ld_extend(ld_data_t *ld)
 	return 0;
 }
 
-static int32_t ld_is_back(const ld_data_t *ld, const int32_t *ht, int32_t max_step)
+static int32_t ld_do_backward(const ld_data_t *ld, const int32_t *ht, int32_t max_step)
 {
 	int32_t i, j;
 	double s = 0.0;
@@ -304,10 +279,10 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 
 		j = -1;
 		if (ht[x] > 1) { // no need to call the following if x is a singleton in the window; DON'T test ld_is_back() here!
-			if (last_i == i - 1 && last_q == 0) // test and potentially extend the base at i
+			if (last_i == i - 1 && last_q == 0) // test and potentially extend the base at i, ONLY when the full window is LCR
 				j = ld_extend(ld);
-			if (j < 0 && ld_is_back(ld, ht, ld->max_test))
-				j = opt->exact? ld_dust_back_exact(ld, i, ht, ht_sum) : ld_dust_back(ld, i, ht, ht_sum);
+			if (j < 0 && ld_do_backward(ld, ht, ld->max_test))
+				j = ld_dust_backward(ld, i, ht, ht_sum);
 		}
 		if (j >= 0) { // LCR found
 			int64_t st2 = i - (kdq_size(ld->q) - 1 - j) - (opt->kmer - 1); // the start of LCR
