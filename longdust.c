@@ -295,12 +295,8 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		if (ht[x] > 1) { // no need to call the following if x is a singleton in the window; DON'T test ld_is_back() here!
 			if (last_i == i - 1 && last_q == 0) // test and potentially extend the base at i
 				j = ld_extend(ld);
-			if (j < 0) {
-				if (opt->exact) // exact but slow algorithm
-					j = ld_dust_back_exact(ld, i);
-				else if (ld_is_back(ld, ht, ld->max_test))
-					j = ld_dust_back(ld, i, ht, ht_sum);
-			}
+			if (j < 0 && ld_is_back(ld, ht, ld->max_test))
+				j = opt->exact? ld_dust_back_exact(ld, i) : ld_dust_back(ld, i, ht, ht_sum);
 		}
 		#endif
 		if (j >= 0) { // LCR found
