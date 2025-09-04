@@ -90,6 +90,11 @@ static unsigned char seq_comp_tab[] = { // not really necessary
 
 KDQ_INIT(uint32_t)
 
+typedef struct {
+	int32_t pos;
+	double max;
+} ld_forpos_t;
+
 struct ld_data_s {
 	void *km; // memory
 	const ld_opt_t *opt;
@@ -97,7 +102,7 @@ struct ld_data_s {
 	kdq_t(uint32_t) *q;
 	int32_t *ht, *ht_for;
 	int32_t max_test, n_for_pos;
-	int32_t *for_pos;
+	ld_forpos_t *for_pos;
 	// output
 	int64_t n_intv, m_intv;
 	ld_intv_t *intv;
@@ -125,7 +130,7 @@ ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
 	for (i = 2; i <= opt->ws; ++i)
 		ld->c[i] = log(i);
 	ld->q = kdq_init(uint32_t, km);
-	ld->for_pos = Kcalloc(km, int32_t, opt->ws + 1);
+	ld->for_pos = Kcalloc(km, ld_forpos_t, opt->ws + 1);
 	// calculate min_test, the max step used in ld_do_backward()
 	for (i = 1, s = 0.0; i < opt->ws; ++i) { // i <- minimum j such that \sum_{c=1}^j {\log(c) - T} > 0
 		s += ld->c[i] - opt->thres;
@@ -147,7 +152,7 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld);
 }
 
-static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, int32_t *ht)
+static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, double max_back, int32_t *ht)
 {
 	const ld_opt_t *opt = ld->opt;
 	int32_t max_i = -1, i, l;
@@ -158,6 +163,7 @@ static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, int32_t *ht)
 		s += (x&1? 0 : ld->c[++ht[x>>1]]) - opt->thres;
 		sl = s - ld->f[l];
 		if (sl >= max_sf) max_sf = sl, max_i = i;
+		if (sl > max_back + 1e-6) break;
 	}
 	return max_i;
 }
@@ -176,7 +182,7 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
 		sl = s - ld->f[l]; // this is the score
 		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb) // store positions where forward may be needed
-			ld->for_pos[ld->n_for_pos++] = i + 1;
+			ld->for_pos[ld->n_for_pos].pos = i + 1, ld->for_pos[ld->n_for_pos++].max = max_sb;
 		if (sl >= max_sb) {
 			max_sb = sl, max_i = i;
 		} else if (max_i < 0) {
@@ -189,13 +195,14 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 		last_sl = sl;
 	}
 	if (max_i < 0) return -1;
-	if (ld->n_for_pos == 0 || max_i < ld->for_pos[ld->n_for_pos - 1]) // this may happen when the max_sb is achieved at the last cycle
-		ld->for_pos[ld->n_for_pos++] = max_i;
+	if (ld->n_for_pos == 0 || max_i < ld->for_pos[ld->n_for_pos - 1].pos) // this may happen when the max_sb is achieved at the last cycle
+		ld->for_pos[ld->n_for_pos].pos = max_i, ld->for_pos[ld->n_for_pos++].max = max_sb;
 	for (i = ld->n_for_pos - 1, max_end = -1; i >= 0; --i) { // forward
-		int32_t k, j = ld->for_pos[i];
-		if (j < max_end) continue;
-		k = ld_dust_forward(ld, j, ld->ht);
-		if (k == kdq_size(ld->q) - 1) return j;
+		const ld_forpos_t *p = &ld->for_pos[i];
+		int32_t k;
+		if (p->pos < max_end) continue;
+		k = ld_dust_forward(ld, p->pos, p->max, ld->ht);
+		if (k == kdq_size(ld->q) - 1) return p->pos;
 		if (opt->approx) break; // in the approximate mode, do one forward pass only
 		max_end = k;
 	}

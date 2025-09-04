@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -t FLOAT    score threshold [%g]\n", opt.thres);
 		fprintf(stderr, "  -e INT      extension X-drop length (0 to disable) [%d]\n", opt.xdrop_len);
 		fprintf(stderr, "  -f          forward strand only\n");
-		fprintf(stderr, "  -a          approximate mode\n");
+		fprintf(stderr, "  -a          guaranteed O(Lw) algorithm but with more approximation\n");
 		fprintf(stderr, "  -v          version number\n");
 		fprintf(stderr, "Notes:\n");
 		fprintf(stderr, "  * Recommend w < 4^k for performance, especially given large w\n");
