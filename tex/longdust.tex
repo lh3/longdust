@@ -1,0 +1,146 @@
+\documentclass[webpdf,contemporary,large,namedate]{oup-authoring-template}%
+
+%\PassOptionsToPackage{hyphens}{url}
+%\PassOptionsToPackage{colorlinks,linkcolor=blue,urlcolor=blue,citecolor=blue,anchorcolor=blue}{hyperref}
+
+\DeclareMathOperator*{\argmax}{argmax}
+
+\usepackage{algorithmicx}
+\usepackage{lmodern}
+\usepackage{setspace}
+\renewcommand{\ttdefault}{cmtt}
+
+\begin{document}
+\journaltitle{TBD}
+\DOI{TBD}
+\copyrightyear{2025}
+\pubyear{2025}
+\access{Advance Access Publication Date: Day Month Year}
+\appnotes{Preprint}
+\firstpage{1}
+
+\title[Finding low-complexity regions]{Identifying low-complexity regions with longdust}
+\author[1,2,3,$\ast$]{Heng Li\ORCID{0000-0003-4874-2874}}
+\author[4]{Brian Li}
+\address[1]{Department of Biomedical Informatics, Harvard Medical School, 10 Shattuck St, Boston, MA 02215, USA}
+\address[2]{Department of Data Science, Dana-Farber Cancer Institute, 450 Brookline Ave, Boston, MA 02215, USA}
+\address[3]{Broad Insitute of MIT and Harvard, 415 Main St, Cambridge, MA 02142, USA}
+\address[4]{Commonwealth School, Boston, MA 02116, USA}
+\corresp[$\ast$]{Corresponding author. \href{mailto:hli@ds.dfci.harvard.edu}{hli@ds.dfci.harvard.edu}}
+
+%\received{Date}{0}{Year}
+%\revised{Date}{0}{Year}
+%\accepted{Date}{0}{Year}
+
+\abstract{
+\sffamily\footnotesize
+\textbf{Background:}
+\vspace{0.5em}\\
+\textbf{Results:}
+\vspace{0.5em}\\
+\textbf{Conclusion:}
+\vspace{0.5em}\\
+\textbf{Availability and implementation:}
+\url{https://github.com/lh3/longdust}
+}
+
+\maketitle
+
+\section{Introduction}
+
+\section{Methods}
+
+\subsection{Notations}
+
+Let $\Sigma=\{{\tt A},{\tt C},{\tt G},{\tt T}\}$ be the DNA alphabet,
+$x\in\Sigma^*$ is a DNA string and $|x|$ is its length.
+$t\in\Sigma^k$ is a $k$-mer.
+For $|x|\ge k$, $c_x(t)$ is the occurrence of $k$-mer $t$ in $x$;
+
+$\ell(x)=\sum_t c_x(t)=|x|-k+1$ is the total number of $k$-mers in $x$.
+Introduce $\vec{c}_x$ as the count array over all $k$-mers
+and $\kappa(x)$ as the set of distinct $k$-mers in $x$.
+
+In this article, we assume there is one long genome string.
+We use closed interval $[i,j]$ to represent the substring starting at $i$
+and ending at $j$, including the end points $i$ and $j$.
+We may use ``interval'' and ``subsequence'' interchangeably.
+
+\subsection{Modeling $k$-mer counts}
+
+Suppose symbols in $\Sigma$ all occur at equal frequency.
+Then $c_x(t)\sim{\rm Poisson}(\lambda)$ where $\lambda=\ell(x)/4^k$.
+Let
+$$
+p(n|\lambda)\triangleq\frac{\lambda^n}{n!}e^{-\lambda}
+$$
+be the probability mass function of Poisson distribution.
+
+The composite probability of string $x$ can be modeled by
+$$
+P(x)=\prod_{t\in\Sigma^k}p(c_x(t)|\lambda)
+$$
+We have
+$$
+\log P(x)=4^k\lambda(\log\lambda-1)-\sum_t\log c_x(t)!
+$$
+The average of $\log P(x)$ can be approximated as
+\begin{eqnarray*}
+H(\lambda)&\triangleq&\sum_{\vec{c}}P(\vec{c})\cdot\sum_t\log p(c_t|\lambda)\\
+&=&4^k\sum_{n=0}^{\infty}p(n|\lambda)\log p(n|\lambda)\\
+&=&4^k\lambda(\log\lambda-1)-4^ke^{-\lambda}\sum_{n=0}^{\infty}\log n!\cdot\frac{\lambda^n}{n!}
+\end{eqnarray*}
+which is the negative entropy of $P$. Note that in theory $n\le\ell(x)$,
+but with $\ell(x)\gg1$ in practice,
+$$
+p(\ell|\lambda)\approx\frac{e^{-\lambda}}{\sqrt{2\pi\ell}}\cdot\left(\frac{e}{4^k}\right)^{\ell}\ll 1
+$$
+under Sterling's approximation.
+The sum to $\infty$ in $H(\lambda)$ is justified.
+Define
+$$
+Q(x)\triangleq H(\lambda)-\log P(x)=\sum_t\log c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
+$$
+where
+$$
+f(\lambda)\triangleq4^ke^{-\lambda}\sum_{n=0}^\infty\log n!\cdot\frac{\lambda^n}{n!}
+$$
+
+\subsection{The $k$-mer repetitiveness of a string}
+
+We measure the repetitiveness of string $x$ by $S(\vec{c}_x)$,
+which is a function of $k$-mer counts but does not depend on other properties of $x$.
+For convenience, we may also write $S(x)$ as the score function.
+We say $x$ is a \emph{perfect string/interval} if no substring of $x$ is scored higher than $S(x)$;
+$x$ is a \emph{good string/interval} if no prefix or suffix of $x$ is scored higher than $S(x)$.
+
+
+
+\section{Results}
+
+\section{Discussions}
+
+\section*{Acknowledgments}
+
+\section*{Author contributions}
+
+H.L. conceived the project, implemented the method, analyzed the data and drafted the manuscript.
+B.L. prototyped the algorithm.
+
+\section*{Conflict of interest}
+
+None declared.
+
+\section*{Funding}
+
+This work is supported by National Institute of Health grant R01HG010040, U01HG013748 and U41HG010972 (to H.L.).
+
+\section*{Data availability}
+
+\url{https://github.com/lh3/longdust}
+
+\bibliographystyle{apalike}
+{\sffamily\small
+\bibliography{longdust}}
+
+\end{document}
