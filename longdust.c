@@ -16,8 +16,7 @@
 static double ld_f_large(double lambda) // with Sterling's approximation
 {
 	double x = 0.5 * log(2.0 * LD_PI * LD_E * lambda) - 1.0 / 12.0 / lambda * (1.0 + 0.5 / lambda + 19.0 / 30.0 / lambda / lambda);
-	x += lambda * (log(lambda) - 1.0);
-	return x;
+	return x + lambda * (log(lambda) - 1.0);
 }
 
 static double *ld_cal_f(void *km, int32_t k, int32_t max_l)
@@ -46,6 +45,7 @@ static double *ld_cal_f(void *km, int32_t k, int32_t max_l)
 		} else {
 			f[l] = ld_f_large(lambda);
 		}
+		f[l] *= 1U<<2*k;
 	}
 	return f;
 }
@@ -131,7 +131,7 @@ ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
 		ld->c[i] = log(i);
 	ld->q = kdq_init(uint32_t, km);
 	ld->for_pos = Kcalloc(km, ld_forpos_t, opt->ws + 1);
-	// calculate min_test, the max step used in ld_do_backward()
+	// calculate min_test, the max step used in ld_if_backward()
 	for (i = 1, s = 0.0; i < opt->ws; ++i) { // i <- minimum j such that \sum_{c=1}^j {\log(c) - T} > 0
 		s += ld->c[i] - opt->thres;
 		sl = s - ld->f[i];
@@ -191,7 +191,7 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 		} else {
 			if (max_sb - sl > xdrop) break; // X-drop
 		}
-		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break; // in this case, we won't get a higher score even if we reach i==0
+		//if (win_sum - ld->f[l] - l * opt->thres < max_sb) break; // in this case, we won't get a higher score even if we reach i==0; not every effective
 		last_sl = sl;
 	}
 	if (max_i < 0) return -1;
@@ -221,7 +221,7 @@ static int32_t ld_extend(ld_data_t *ld)
 	return 0;
 }
 
-static int32_t ld_do_backward(const ld_data_t *ld, const int32_t *ht, int32_t max_step)
+static int32_t ld_if_backward(const ld_data_t *ld, const int32_t *ht, int32_t max_step)
 {
 	int32_t i, j;
 	double s = 0.0;
@@ -256,7 +256,7 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 	const ld_opt_t *opt = ld->opt;
 	uint32_t x, mask = (1U<<2*opt->kmer) - 1;
 	int64_t i, l, st = -1, en = -1;
-	int64_t last_i = -1, last_q = -1; // last_i: i of last successful LCR; last_q: pos in queue when last_i is set
+	int64_t last_q = -1; // last_q: pos in queue when last_i is set
 	int32_t *ht;
 	double ht_sum = 0.0;
 
@@ -287,9 +287,9 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		j = -1;
 		if (ht[x] > 1) { // no need to call the following if x is a singleton in the window; DON'T test ld_is_back() here!
 			double swin = ht_sum - ld->f[kdq_size(ld->q)] - kdq_size(ld->q) * opt->thres; // this is the full window score
-			if (last_i == i - 1 && last_q == 0 && swin > 0.0) // test and potentially extend the base at i, ONLY when the full window is LCR
+			if (i == en && (last_q == 0 || i - st >= kdq_size(ld->q)) && swin > 0.0) // test and potentially extend the base at i, ONLY when the full window is LCR
 				j = ld_extend(ld);
-			if (j < 0 && ld_do_backward(ld, ht, ld->max_test))
+			if (j < 0 && ld_if_backward(ld, ht, ld->max_test))
 				j = ld_dust_backward(ld, i, ht, ht_sum);
 		}
 		if (j >= 0) { // LCR found
@@ -301,7 +301,7 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 				st = st2;
 			}
 			en = i + 1;
-			last_i = i, last_q = j;
+			last_q = j;
 		}
 	}
 	if (st >= 0) ld_save_intv(ld, st, en);
