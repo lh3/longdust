@@ -6,50 +6,6 @@
 #include "kdq.h"
 #include "longdust.h"
 
-/***************
- * Compute f() *
- ***************/
-
-#define LD_E  2.71828182845904523536028747135266250
-#define LD_PI 3.14159265358979323846264338327950288
-
-static double ld_f_large(double lambda) // with Sterling's approximation
-{
-	double x = 0.5 * log(2.0 * LD_PI * LD_E * lambda) - 1.0 / 12.0 / lambda * (1.0 + 0.5 / lambda + 19.0 / 30.0 / lambda / lambda);
-	x += lambda * (log(lambda) - 1.0);
-	return x;
-}
-
-static double *ld_cal_f(void *km, int32_t k, int32_t max_l)
-{
-	static const double eps = 1e-9;
-	static const int32_t max_n = 10000;
-	double *f;
-	int32_t l;
-	assert(k < 16);
-	f = Kcalloc(km, double, max_l + 1);
-	for (l = 1; l <= max_l; ++l) {
-		double lambda = (double)l / (1U<<2*k);
-		double x = 0.0, sn = 0.0, y = lambda;
-		int32_t n;
-		if (lambda < 30.0) {
-			for (n = 2; n <= max_n; ++n) {
-				double z;
-				sn += log(n);
-				y *= lambda / n;
-				z = y * sn;
-				if (z < x * eps) break;
-				x += z;
-			}
-			f[l] = x * exp(-lambda);
-			//printf("%d\t%f\t%f\t%f\n", l, lambda, f[l], ld_f_large(lambda));
-		} else {
-			f[l] = ld_f_large(lambda);
-		}
-	}
-	return f;
-}
-
 /*********
  * Table *
  *********/
@@ -98,7 +54,7 @@ typedef struct {
 struct ld_data_s {
 	void *km; // memory
 	const ld_opt_t *opt;
-	double *f, *c;
+	double *d;
 	kdq_t(uint32_t) *q;
 	int32_t *ht, *ht_for;
 	int32_t max_test, n_for_pos;
@@ -120,24 +76,16 @@ void ld_opt_init(ld_opt_t *opt)
 ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
 {
 	int32_t i;
-	double s, sl;
 	ld_data_t *ld;
 	ld = Kcalloc(km, ld_data_t, 1);
 	ld->opt = opt;
 	ld->ht = Kcalloc(km, int32_t, 1U<<2*opt->kmer);
-	ld->f = ld_cal_f(km, opt->kmer, opt->ws + 1);
-	ld->c = Kcalloc(km, double, opt->ws + 1);
+	ld->d = Kcalloc(km, double, opt->ws + 1);
 	for (i = 2; i <= opt->ws; ++i)
-		ld->c[i] = log(i);
+		ld->d[i] = 0.5 * i * log(i);
 	ld->q = kdq_init(uint32_t, km);
 	ld->for_pos = Kcalloc(km, ld_forpos_t, opt->ws + 1);
-	// calculate min_test, the max step used in ld_do_backward()
-	for (i = 1, s = 0.0; i < opt->ws; ++i) { // i <- minimum j such that \sum_{c=1}^j {\log(c) - T} > 0
-		s += ld->c[i] - opt->thres;
-		sl = s - ld->f[i];
-		if (sl > 0.0) break;
-	} // here, i-1+k is the minimum detectable homopolymer length
-	ld->max_test = (int)(i * log(i) / opt->thres);
+	ld->max_test = opt->kmer; // FIXME: this not precise
 	return ld;
 }
 
@@ -147,7 +95,7 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld->intv);
 	kfree(km, ld->for_pos);
 	kdq_destroy(uint32_t, ld->q);
-	kfree(km, ld->c); kfree(km, ld->f);
+	kfree(km, ld->d);
 	kfree(km, ld->ht);
 	kfree(km, ld);
 }
@@ -156,14 +104,14 @@ static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, double max_back, int32
 {
 	const ld_opt_t *opt = ld->opt;
 	int32_t max_i = -1, i, l;
-	double s, sl, max_sf = 0.0;
+	double s, max_sf = 0.0;
 	memset(ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
-	for (i = i0, l = 1, s = sl = 0.0; i < kdq_size(ld->q); ++i, ++l) {
+	for (i = i0, l = 1, s = 0.0; i < kdq_size(ld->q); ++i, ++l) {
 		uint32_t x = kdq_at(ld->q, i);
-		s += (x&1? 0 : ld->c[++ht[x>>1]]) - opt->thres;
-		sl = s - ld->f[l];
-		if (sl >= max_sf) max_sf = sl, max_i = i;
-		if (sl > max_back + 1e-6) break;
+		s += (x&1? 0 : ld->d[ht[x>>1]+1] - ld->d[ht[x>>1]]) - opt->thres;
+		++ht[x>>1];
+		if (s >= max_sf) max_sf = s, max_i = i;
+		if (s > max_back + 1e-6) break;
 	}
 	return max_i;
 }
@@ -173,26 +121,25 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 	const ld_opt_t *opt = ld->opt;
 	double xdrop = opt->thres * (opt->xdrop_len > 0? opt->xdrop_len : opt->ws);
 	int32_t i, l, max_i = -1, max_end;
-	double s, sl, sw, max_sb = 0.0, last_sl = -1.0;
+	double s, sw, max_sb = 0.0, last_s = -1.0;
 
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
 	ld->n_for_pos = 0;
-	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = sw = 0.0; i >= 0; --i, ++l) { // backward
+	for (i = kdq_size(ld->q) - 1, l = 1, s = sw = 0.0; i >= 0; --i, ++l) { // backward
 		uint32_t x = kdq_at(ld->q, i);
-		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
-		sl = s - ld->f[l]; // this is the score
-		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb) // store positions where forward may be needed
+		s += (x&1? 0 : ld->d[ld->ht[x>>1]+1] - ld->d[ld->ht[x>>1]]) - opt->thres;
+		++ld->ht[x>>1];
+		if (s < last_s && last_s > 0.0 && last_s == max_sb) // store positions where forward may be needed
 			ld->for_pos[ld->n_for_pos].pos = i + 1, ld->for_pos[ld->n_for_pos++].max = max_sb;
-		if (sl >= max_sb) {
-			max_sb = sl, max_i = i;
+		if (s >= max_sb) {
+			max_sb = s, max_i = i;
 		} else if (max_i < 0) {
-			sw += (x&1? 0 : ld->c[win_ht[x>>1]]) - opt->thres;
+			sw += (x&1? 0 : ld->d[win_ht[x>>1]]) - opt->thres;
 			if (sw < 0.0) break; // in this case, the forward pass won't reach _pos_
 		} else {
-			if (max_sb - sl > xdrop) break; // X-drop
+			if (max_sb - s > xdrop) break; // X-drop
 		}
-		if (win_sum - ld->f[l] - l * opt->thres < max_sb) break; // in this case, we won't get a higher score even if we reach i==0
-		last_sl = sl;
+		last_s = s;
 	}
 	if (max_i < 0) return -1;
 	if (ld->n_for_pos == 0 || max_i < ld->for_pos[ld->n_for_pos - 1].pos) // this may happen when the max_sb is achieved at the last cycle
@@ -212,10 +159,9 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 static int32_t ld_extend(ld_data_t *ld)
 {
 	uint32_t x = kdq_at(ld->q, kdq_size(ld->q) - 1);
-	int32_t l = kdq_size(ld->q) - 1;
 	double diff;
 	if (x&1) return -1;
-	diff = ld->c[ld->ht[x>>1] + 1] - (ld->f[l + 1] - ld->f[l]);
+	diff = ld->d[ld->ht[x>>1] + 1] - ld->d[ld->ht[x>>1]];
 	if (diff < ld->opt->thres) return -1; // if this doesn't increase score, don't extend
 	++ld->ht[x>>1];
 	return 0;
@@ -227,7 +173,7 @@ static int32_t ld_do_backward(const ld_data_t *ld, const int32_t *ht, int32_t ma
 	double s = 0.0;
 	for (i = kdq_size(ld->q) - 1, j = 0; i >= 0 && j < max_step; --i, ++j) {
 		uint32_t x = kdq_at(ld->q, i);
-		s += (x&1? 0 : ld->c[ht[x>>1]]) - ld->opt->thres;
+		s += (x&1? 0 : ld->d[ht[x>>1]]) - ld->opt->thres;
 		if (s < 0.0) return 0;
 	}
 	return 1;
@@ -276,17 +222,17 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		if (kdq_size(ld->q) >= opt->ws) { // remove from the queue
 			uint32_t *p;
 			p = kdq_shift(uint32_t, ld->q);
-			if ((*p&1) == 0) ht_sum -= ld->c[ht[*p>>1]--];
+			if ((*p&1) == 0) ht_sum -= ld->d[ht[*p>>1]--];
 			if (last_q == 0) --ld->ht[*p>>1];
 			else --last_q; // this needs to be updated as the queue is shifted
 		}
 		kdq_push(uint32_t, ld->q, x<<1|ambi);
 		if (ambi) continue;
-		ht_sum += ld->c[++ht[x]];
+		ht_sum += ld->d[++ht[x]];
 
 		j = -1;
 		if (ht[x] > 1) { // no need to call the following if x is a singleton in the window; DON'T test ld_is_back() here!
-			double swin = ht_sum - ld->f[kdq_size(ld->q)] - kdq_size(ld->q) * opt->thres; // this is the full window score
+			double swin = ht_sum - kdq_size(ld->q) * opt->thres; // this is the full window score
 			if (last_i == i - 1 && last_q == 0 && swin > 0.0) // test and potentially extend the base at i, ONLY when the full window is LCR
 				j = ld_extend(ld);
 			if (j < 0 && ld_do_backward(ld, ht, ld->max_test))
