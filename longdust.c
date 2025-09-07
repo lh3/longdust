@@ -104,14 +104,15 @@ static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, double max_back, int32
 {
 	const ld_opt_t *opt = ld->opt;
 	int32_t max_i = -1, i, l;
-	double s, max_sf = 0.0;
+	double s, sl, max_sf = 0.0;
 	memset(ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
-	for (i = i0, l = 1, s = 0.0; i < kdq_size(ld->q); ++i, ++l) {
+	for (i = i0, l = 1, s = sl = 0.0; i < kdq_size(ld->q); ++i, ++l) {
 		uint32_t x = kdq_at(ld->q, i);
 		s += (x&1? 0 : ld->d[ht[x>>1]+1] - ld->d[ht[x>>1]]) - opt->thres;
 		++ht[x>>1];
-		if (s >= max_sf) max_sf = s, max_i = i;
-		if (s > max_back + 1e-6) break;
+		sl = s / l;
+		if (sl >= max_sf) max_sf = sl, max_i = i;
+		if (sl > max_back + 1e-6) break;
 	}
 	return max_i;
 }
@@ -121,25 +122,26 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 	const ld_opt_t *opt = ld->opt;
 	double xdrop = opt->thres * (opt->xdrop_len > 0? opt->xdrop_len : opt->ws);
 	int32_t i, l, max_i = -1, max_end;
-	double s, sw, max_sb = 0.0, last_s = -1.0;
+	double s, sl, sw, max_sb = 0.0, last_sl = -1.0;
 
 	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
 	ld->n_for_pos = 0;
-	for (i = kdq_size(ld->q) - 1, l = 1, s = sw = 0.0; i >= 0; --i, ++l) { // backward
+	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = sw = 0.0; i >= 0; --i, ++l) { // backward
 		uint32_t x = kdq_at(ld->q, i);
 		s += (x&1? 0 : ld->d[ld->ht[x>>1]+1] - ld->d[ld->ht[x>>1]]) - opt->thres;
 		++ld->ht[x>>1];
-		if (s < last_s && last_s > 0.0 && last_s == max_sb) // store positions where forward may be needed
+		sl = s / l;
+		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb) // store positions where forward may be needed
 			ld->for_pos[ld->n_for_pos].pos = i + 1, ld->for_pos[ld->n_for_pos++].max = max_sb;
-		if (s >= max_sb) {
-			max_sb = s, max_i = i;
+		if (sl >= max_sb) {
+			max_sb = sl, max_i = i;
 		} else if (max_i < 0) {
 			sw += (x&1? 0 : ld->d[win_ht[x>>1]]) - opt->thres;
 			if (sw < 0.0) break; // in this case, the forward pass won't reach _pos_
 		} else {
 			if (max_sb - s > xdrop) break; // X-drop
 		}
-		last_s = s;
+		last_sl = sl;
 	}
 	if (max_i < 0) return -1;
 	if (ld->n_for_pos == 0 || max_i < ld->for_pos[ld->n_for_pos - 1].pos) // this may happen when the max_sb is achieved at the last cycle
