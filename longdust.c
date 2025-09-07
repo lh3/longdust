@@ -191,7 +191,7 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 		} else {
 			if (max_sb - sl > xdrop) break; // X-drop
 		}
-		//if (win_sum - ld->f[l] - l * opt->thres < max_sb) break; // in this case, we won't get a higher score even if we reach i==0; not every effective
+		//if (win_sum - ld->f[l] - l * opt->thres < max_sb) break; // in this case, we won't get a higher score even if we reach i==0; not very effective
 		last_sl = sl;
 	}
 	if (max_i < 0) return -1;
@@ -204,7 +204,7 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 		k = ld_dust_forward(ld, p->pos, p->max, ld->ht);
 		if (k == kdq_size(ld->q) - 1) return p->pos;
 		if (opt->approx) break; // in the approximate mode, do one forward pass only
-		max_end = k;
+		max_end = max_end > k? max_end : k;
 	}
 	return -1;
 }

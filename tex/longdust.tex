@@ -19,7 +19,7 @@
 \appnotes{Preprint}
 \firstpage{1}
 
-\title[Finding low-complexity regions]{Identifying low-complexity regions with longdust}
+\title[Finding low-complexity sequences]{Finding low-complexity DNA sequences with longdust}
 \author[1,2,3,$\ast$]{Heng Li\ORCID{0000-0003-4874-2874}}
 \author[4]{Brian Li}
 \address[1]{Department of Biomedical Informatics, Harvard Medical School, 10 Shattuck St, Boston, MA 02215, USA}
@@ -34,11 +34,19 @@
 
 \abstract{
 \sffamily\footnotesize
-\textbf{Background:}
+\textbf{Motivation:}
+Low-complexity (LC) DNA sequences are compositionally repetitive sequences
+that are often associated with increased variant density and variant calling artifacts.
+While algorithms for identifying LC sequences exist,
+they either lack rigorous mathematical foundation
+or are inefficient with long conext windows.
 \vspace{0.5em}\\
 \textbf{Results:}
-\vspace{0.5em}\\
-\textbf{Conclusion:}
+Longdust is a new algorithm that efficiently identifies long LC sequences including centromeric satellite
+and tandem repeats with moderately long motifs.
+It defines string complexity by statistically modeling the $k$-mer count distribution
+with the parameters: the $k$-mer length, the context window size and a threshold on complexity.
+Longdust exhibits high performance on real data and high consistency with existing methods.
 \vspace{0.5em}\\
 \textbf{Availability and implementation:}
 \url{https://github.com/lh3/longdust}
@@ -48,7 +56,32 @@
 
 \section{Introduction}
 
+In computer science, a string is of low complexity (LC) if it is repetitive in composition.
+LC strings tend to be tandemly repetitive and
+most of them can be identified with tandem repeat finding algorithms such as
+TRF~\citep{Benson:1999aa}, TANTAN~\citep{Frith:2011aa} and ULTRA~\citep{Olson:2024aa}.
+These algorithms do not rigorously define string complexity.
+They rely on heuristics to search for impure tandem repeats
+and cannot identify LC strings without clear tandem structures.
+SDUST~\citep{Morgulis:2006aa} is the only widely used algorithm that explicitly defines string complexity
+and finds the exact solutions.
+However, with $O(w^3L)$ time complexity, where $w$ is the window size and $L$ is the genome length,
+SDUST is inefficient given a large $w$ and is thus impractical for finding satellite or tandem repeats with long motifs.
+Furthermore, the complexity scoring function used by SDUST is not backed by rigorous modeling.
+The theoretical properties of LC strings defined this way are unclear.
+
+Inspired by SDUST, we sought an alternative way to define the $k$-mer complexity of a string
+and to bound LC regions.
+Our complexity scoring function is based on a statistical model of $k$-mer count distribution
+and our bounding condition results in a practical algorithm close to $O(wL)$ in time complexity,
+enabling the efficient identification of LC strings in long context windows.
+
 \section{Methods}
+
+Similar to SDUST~\citep{Morgulis:2006aa}, we define the complexity of a DNA string with a function of the $k$-mer counts of the string.
+In this section, we will first model the $k$-mer count distribution of random strings.
+We will then describe the complexity scoring function and the condition on bounding LC substrings in a long string.
+We will compare our method to SDUST in the end.
 
 \subsection{Notations}
 
@@ -56,13 +89,12 @@ Let $\Sigma=\{{\tt A},{\tt C},{\tt G},{\tt T}\}$ be the DNA alphabet,
 $x\in\Sigma^*$ is a DNA string and $|x|$ is its length.
 $t\in\Sigma^k$ is a $k$-mer.
 For $|x|\ge k$, $c_x(t)$ is the occurrence of $k$-mer $t$ in $x$;
-
 $\ell(x)=\sum_t c_x(t)=|x|-k+1$ is the total number of $k$-mers in $x$.
 Introduce $\vec{c}_x$ as the count array over all $k$-mers
 and $\kappa(x)$ as the set of distinct $k$-mers in $x$.
 
-In this article, we assume there is one long genome string.
-We use closed interval $[i,j]$ to represent the substring starting at $i$
+In this article, we assume there is one long genome string of length $L$.
+We use closed interval $[i,j]$ to denote the substring starting at $i$
 and ending at $j$, including the end points $i$ and $j$.
 We may use ``interval'' and ``subsequence'' interchangeably.
 
@@ -75,46 +107,188 @@ $$
 p(n|\lambda)\triangleq\frac{\lambda^n}{n!}e^{-\lambda}
 $$
 be the probability mass function of Poisson distribution.
+Notably, although $c_x(t)\le\ell(x)$, given that $\ell(x)\gg1$ in practice,
+$$
+p(\ell|\lambda)\approx\frac{e^{-\lambda}}{\sqrt{2\pi\ell}}\cdot\left(\frac{e}{4^k}\right)^{\ell}\ll 1
+$$
+with the Sterling formula -- $p(\ell|\lambda)$ is very close to 0.
+This suggests Poisson remains a good approximation.
 
 The composite probability of string $x$ can be modeled by
 $$
-P(x)=\prod_{t\in\Sigma^k}p(c_x(t)|\lambda)
+P(\vec{c}_x)=\prod_{t\in\Sigma^k}p(c_x(t)|\lambda)
 $$
 We have
-$$
-\log P(x)=4^k\lambda(\log\lambda-1)-\sum_t\log c_x(t)!
-$$
-The average of $\log P(x)$ can be approximated as
+\begin{equation}\label{eq:P}
+\log P(\vec{c}_x)=4^k\lambda(\log\lambda-1)-\sum_t\log c_x(t)!
+\end{equation}
+To get an intuition about $P(\vec{c}_x)$, suppose $\ell(x)\ll4^k$.
+In this case, $c_x(t)$ will be mostly 0 or 1 for a random string
+and the last term in Eq.~(\ref{eq:P}) will be close to 0.
+Given an LC string of the same length,
+we will see more $c_x(t)\ge2$ which will reduce $\log P(\vec{c}_x)$
+-- the probability of an LC string is lower under this model.
+
+Although $\log P(\vec{c}_x)$ can be used to compare the complexity of strings of the same length,
+it does not work well for strings of different lengths because $\log P(\vec{c}_x)$ decreases with $\ell(x)$.
+We would like to scale it to $Q(\vec{c}_x)$ such that
+$Q$ approaches 0 given a random string.
+We note that on the assumption of equal base frequency,
+the average of $\log P(\vec{c}_x)$ can be approximated to
 \begin{eqnarray*}
 H(\lambda)&\triangleq&\sum_{\vec{c}}P(\vec{c})\cdot\sum_t\log p(c_t|\lambda)\\
 &=&4^k\sum_{n=0}^{\infty}p(n|\lambda)\log p(n|\lambda)\\
 &=&4^k\lambda(\log\lambda-1)-4^ke^{-\lambda}\sum_{n=0}^{\infty}\log n!\cdot\frac{\lambda^n}{n!}
 \end{eqnarray*}
-which is the negative entropy of $P$. Note that in theory $n\le\ell(x)$,
-but with $\ell(x)\gg1$ in practice,
+which is the negative entropy of $P$.
+We can thus define
 $$
-p(\ell|\lambda)\approx\frac{e^{-\lambda}}{\sqrt{2\pi\ell}}\cdot\left(\frac{e}{4^k}\right)^{\ell}\ll 1
-$$
-under Sterling's approximation.
-The sum to $\infty$ in $H(\lambda)$ is justified.
-Define
-$$
-Q(x)\triangleq H(\lambda)-\log P(x)=\sum_t\log c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
+Q(\vec{c}_x)\triangleq H(\lambda)-\log P(\vec{c}_x)=\sum_t\log c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
 $$
 where
 $$
 f(\lambda)\triangleq4^ke^{-\lambda}\sum_{n=0}^\infty\log n!\cdot\frac{\lambda^n}{n!}
 $$
+$Q(\vec{c}_x)$ is higher for LC string $x$.
 
-\subsection{The $k$-mer repetitiveness of a string}
+\subsection{Scoring low-complexity intervals}
 
-We measure the repetitiveness of string $x$ by $S(\vec{c}_x)$,
-which is a function of $k$-mer counts but does not depend on other properties of $x$.
-For convenience, we may also write $S(x)$ as the score function.
-We say $x$ is a \emph{perfect string/interval} if no substring of $x$ is scored higher than $S(x)$;
-$x$ is a \emph{good string/interval} if no prefix or suffix of $x$ is scored higher than $S(x)$.
+As base frequencies vary with the GC content
+and genome sequences are rarely random,
+$Q(\vec{c}_x)$ still increases with $\ell(x)$ on real data.
+Our final complexity scoring function takes the form
+\begin{equation}\label{eq:S}
+S(\vec{c}_x)\triangleq Q(\vec{c}_x)-T\cdot\ell(x)=\sum_t\log c_x(t)!-T\cdot\ell(x)-f\left(\frac{\ell(x)}{4^k}\right)
+\end{equation}
+Threshold $T$ controls the level of complexity in the output.
+It defaults to $0.6$, less than $\log 2$.
+If $S(\vec{c}_x)>0$, $x$ is considered to contain an LC substring.
+Note that we often do not want to classify the entire $x$ as an LC substring in this case
+because the concatenation of a highly repetitive sequence and a randem sequence
+could still lead to a positive score.
 
+Recall that we may use close intervals to represent substrings.
+For convenience, we write $S(\vec{c}_{[i,j]})$ as $S(i,j)$.
+In implementation, we precalculate $f(\ell/4^k)$ and introduce
+\begin{eqnarray*}
+U(i,j)&\triangleq&\sum_t\log c_{[i,j]}(t)!-T\cdot\ell([i,j])\\
+&=&U(i,j-1)+\log c_{[i,j]}([j-k+1,j])-T
+\end{eqnarray*}
+We can thus compute the complexity scores of all prefixes of $[i,j]$
+by scanning each base in the interval from left to right.
+We can similarly compute all suffix scores from right to left.
 
+\subsection{Finding low-complexity regions}
+
+We say $x$ is a \emph{perfect LC string} (or \emph{perfect LC interval})
+if $S(\vec{c}_x)>0$ and no substring of $x$ is scored higher than $S(\vec{c}_x)$;
+say $x$ is a \emph{good LC string} (or \emph{good LC interval})
+if $S(\vec{c}_x)>0$ and no prefix or suffix of $x$ is scored higher than $S(\vec{c}_x)$.
+We can use $U(i,j)$ above to test if $[i,j]$ is a good LC interval in linear time.
+If we apply this method to all intervals up to $w$ in length (5000bp by default),
+we can find LC regions of context length up to $w$ in $O(w^2L)$ time.
+The union of all good LC intervals marks the LC regions in a genome.
+
+\begin{algorithm}[bt]
+	\caption{Find LC interval ending at $j$}\label{algo:LC1}
+	\begin{algorithmic}[1]
+		\Procedure{FindStart}{$k,w,T,j,c'$}
+			\State $B\gets${\sc Backward}$(k,w,T,j,c')$
+			\State $j'_{\max}\gets-1$
+			\For{$(i,v')\in B$ in the ascending order of $i$}
+				\State {\bf continue if} $i<j'_{\max}$\Comment{this is an approximation}
+				\State $j'\gets${\sc Forward}$(k,T,i,j,v')$
+				\State \Return $i$ {\bf if} $j'=j$\Comment{$[i,j]$ is a good LC interval}
+				\State $j'_{\max}\gets\max(j'_{\max},j')$
+			\EndFor
+			\State \Return $-1$\Comment{No good LC interval ending at $j$}
+		\EndProcedure
+		\Procedure{Backward}{$k,w,T,j,c'$}
+			\State $u\gets 0$; $v_0\gets-1$; $u'\gets 0$
+			\State $v_{\max}\gets0$; $i_{\max}\gets-1$; $c\gets[0]$
+			\State $B\gets\emptyset$
+			\For{$i\gets j$ {\bf to} $\max(j-w+1,k-1)$}\Comment{$i$ is descending}
+				\State $t\gets[i-k+1,i]$\Comment{the $k$-mer ending at $i$}
+				\State $c[t]\gets c[t]+1$
+				\State $u\gets u+\log(c[t])-T$
+				\State $v\gets u-f((j-i+1)/4^k)$\Comment{$v=S(i-k+1,j)$}
+				\If{$v<v_0$ {\bf and} $v_0=v_{\max}$}
+					\State $B\gets B\cup\{(i+1,v_{\max})\}$\Comment{a candidate start pos}
+				\ElsIf{$v\ge v_{\max}$}
+					\State $v_{\max}\gets v$; $i_{\max}\gets i$
+				\ElsIf{$i_{\max}<0$}
+					\State $u'\gets u'+\log(c'[t])-T$\Comment{$c'[t]\triangleq c_{[j-w+1,j]}(t)$}
+					\State {\bf break if} $u'<0$\Comment{{\sc Forward}() wouldn't reach $j$}
+				\EndIf
+				\State $v_0\gets v$
+			\EndFor
+			\State $B\gets B\cup\{(i_{\max},v_{\max})\}$ {\bf if} $i_{\max}\ge0$
+			\State\Return $B$
+		\EndProcedure
+		\Procedure{Forward}{$k,T,i_0,j,v'_{\max}$}
+			\State $u\gets 0$; $v_{\max}\gets0$; $i_{\max}\gets-1$; $c\gets[0]$
+			\For{$i\gets i_0$ {\bf to} $j$}
+				\State $t\gets[i-k+1,i]$
+				\State $c[t]\gets c[t]+1$
+				\State $u\gets u+\log(c[t])-T$
+				\State $v\gets u-f((i-i_0+1)/4^k)$
+				\If{$v\ge v_{\max}$}
+					\State $v_{\max}\gets v$; $i_{\max}\gets i$
+				\EndIf
+				\State {\bf break if} $v>v'_{\max}$
+			\EndFor
+			\State\Return $i_{\max}$
+		\EndProcedure
+	\end{algorithmic}
+\end{algorithm}
+
+Algorithm~\ref{algo:LC1} shows a faster way to find a good LC interval ending at $j$.
+Function {\sc Backward}() scans backwardly from $j$ to $j-w+1$ to collect candidate start positions (line 22).
+Variable $v$ is the complexity score of suffix $[i-k+1,j]$ (line 20).
+By the definition of good LC interval, $i$ can only be a candidate start if $v$ is no less than all the suffixes visited before (line 21).
+We also ignore a candidate start $i$ if $S(i,j)<S(i-1,j)$
+because if $[i-1,j]$ is not a good LC interval, there must exist $i'>i$ such that $S(i',j)>S(i-1,j)<S(i,j)$, so $[i,j]$ would not be a good LC interval, either.
+In addition, if suffix $[i,j]$ is enriched with $k$-mers unique in the full window $[j-w+1,j]$,
+$[i,j]$ will not be a good LC interval (line 27) as there will exist $j'<j$ such that $S(i,j')>S(i,j)$.
+The time complexity of {\sc Backward}() is $O(w)$.
+
+Given a candidate start position $i$,
+function {\sc Forward}() returns $j'=\argmax_{i<j'\le j} S(i,j')$.
+$[i,j]$ will be a good LC interval if $j'=j$ (Line 7).
+We call {\sc Forward}() in the ascending order of candidate start positions (line 4).
+We may skip a start position if it is contained in an interval found from previous {\sc Forward}() calls (line 5).
+This is an inexact heuristic as it is possible for a good LC interval to start in another good interval.
+An alternative heuristic is to only apply {\sc Forward}() to the smallest candidate start in $B$.
+This leads to a guaranteed $O(w)$ {\sc FindStart}().
+In practice, the two algorithms have almost identical runtime.
+We use Algorithm~\ref{algo:LC1} in longdust as it is closer to the exact algorithm.
+
+Function {\sc FindStart}() finds the longest good LC interval ending at one position.
+We apply the function to every position in the genome to find all good LC intervals.
+We can skip $j$ if $[j-k+1,j]$ is unique in $[j-w+1,j]$ because the forward pass would not reach $j$ in this case.
+We also introduce a heuristic to extend a good LC interval $[j-w,j-1]$ to $[j-w+1,j]$ without calling {\sc FindStart}().
+We additionally use an X-drop heuristic~\citep{Altschul:1997vn} to avoid connecting two good LC intervals occasionally.
+
+The overall longdust algorithm is inexact and may result in slightly different LC regions (21kb out of 278Mb in T2T-CHM13).
+We run the algorithm on both the forward and the reverse strand of the input sequences and merge the resulting intervals.
+The default longdust output is strand symmetric.
+
+\subsection{Comparison to SDUST}
+
+SDUST~\citep{Morgulis:2006aa} uses the following complexity scoring function:
+$$
+S'(\vec{c}_x)=\frac{1}{\ell(x)}\sum_t\frac{c_x(t)(c_x(t)-1)}{2}-T
+$$
+This function grows linearly with $\ell(x)$ for $\ell(x)\ge4^k$,
+while our scoring function grows more slowly in the logarithm scale.
+The SDUST function is more likely to classify longer sequences as LC.
+
+Furthermore, SDUST looks for perfect LC intervals rather than good LC intervals like longdust.
+It cannot test whether an interval is perfect in linear time.
+Instead, SDUST maintains the complete list of perfect intervals in window $[j-w+1,j]$
+and tests a new candidate interval against the list.
+The {\sc FindStart}() equivalent of SDUST is $O(w^3)$ in time, impractical for long windows.
+SDUST hardcodes $k=3$ and uses $w=64$ by default for acceptable performance.
 
 \section{Results}
 

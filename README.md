@@ -13,21 +13,21 @@ without clear tandem structure. Longdust complements TRF etc to some extent.
 
 ## Comparison to other tools
 
-Longdust finds 280.4Mb of LCRs from the T2T-CHM13 analysis set. 228.4Mb of them
+Longdust finds 277.1Mb of LCRs from the T2T-CHM13 analysis set. 226.5Mb of them
 overlap with satellites (plus ~5Mb flanking) annotated by the T2T consortium,
-33.1Mb of the remainder (52.0Mb) overlap with TRF (2 7 7 80 10 50 500 -l12), and
-14.7Mb of the rest (18.9Mb) with SDUST (-t30). Only 4.1Mb is left. Most
+32.8Mb of the remainder (50.6Mb) overlap with TRF (2 7 7 80 10 50 500 -l12), and
+14.7Mb of the rest (17.8Mb) with SDUST (-t30). Only 3.0Mb is left. Most
 longdust LCRs are found by other tools collectively.
 
-In comparison, TRF finds 244.0Mb of TRs with four or more copies. 98.1% of them
+In comparison, TRF finds 244.0Mb of TRs with four or more copies. 97.9% of them
 are identified by longdust as well. On the contrary, of 30.6Mb of TRs with less
-than four copies, only 15.7% overlap with longdust LCRs. Longdust is not tuned
+than four copies, only 14.8% overlap with longdust LCRs. Longdust is not tuned
 for TRs with low copy numbers by default. With 349Mb, TANTAN (-w500 -s.85)
-finds the most TRs. 70.0Mb of them do not overlap with the union of T2T
+finds the most TRs. 70.3Mb of them do not overlap with the union of T2T
 satellite, TRF, SDUST and longdust. Even if we reduce the score threshold from
-50 to 30 with TRF, 63.3Mb is still left. TANTAN seems to be finding distinct TRs.
+50 to 30 with TRF, 63.6Mb is still left. TANTAN seems to be finding distinct TRs.
 
-On performance, longdust and TANTAN both ran for ~35 minutes. SDUST was the fastest
+On performance, longdust ran for 63 minutes. TANTAN is faster at ~35 min; SDUST was the fastest
 at 4 minutes only. They all used less than 1.5GB memory. TRF took nearly 13
 hours for T2T-CHM13. Setting "2 5 7 80 10 30 2000 -l20" took 19 hours and 12GB;
 reducing `-l` to 12 did not yield any output in 40 hours. TRF was much faster on
