@@ -11,8 +11,11 @@
 
 all:longdust.pdf
 
-longdust.pdf:longdust.tex longdust.bib
+longdust.pdf:longdust.tex longdust.bib len.pdf
 		pdflatex longdust; bibtex longdust; pdflatex longdust; pdflatex longdust;
+
+len.eps:plot-tr.gp eval.txt
+		gnuplot plot-tr.gp
 
 clean:
 		rm -fr *.toc *.aux *.bbl *.blg *.idx *.log *.out *~ longdust.pdf
