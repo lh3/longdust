@@ -39,7 +39,7 @@ Low-complexity (LC) DNA sequences are compositionally repetitive sequences
 that are often associated with increased variant density and variant calling artifacts.
 While algorithms for identifying LC sequences exist,
 they either lack rigorous mathematical foundation
-or are inefficient with long conext windows.
+or are inefficient with long context windows.
 \vspace{0.5em}\\
 \textbf{Results:}
 Longdust is a new algorithm that efficiently identifies long LC sequences including centromeric satellite
@@ -59,7 +59,7 @@ Longdust exhibits high performance on real data and high consistency with existi
 In computer science, a string is of low complexity (LC) if it is repetitive in composition.
 LC strings tend to be tandemly repetitive and
 most of them can be identified with tandem repeat finding algorithms such as
-TRF~\citep{Benson:1999aa}, TANTAN~\citep{Frith:2011aa} and ULTRA~\citep{Olson:2024aa}.
+TRF~\citep{Benson:1999aa}, TANTAN~\citep{Frith:2011aa}, ULTRA~\citep{Olson:2024aa} and pytrf~\citep{Du:2025aa}.
 These algorithms do not rigorously define string complexity.
 They rely on heuristics to search for impure tandem repeats
 and cannot identify LC strings without clear tandem structures.
@@ -71,9 +71,9 @@ Furthermore, the complexity scoring function used by SDUST is not backed by rigo
 The theoretical properties of LC strings defined this way are unclear.
 
 Inspired by SDUST, we sought an alternative way to define the $k$-mer complexity of a string
-and to bound LC regions.
+and to identify LC regions in a genome.
 Our complexity scoring function is based on a statistical model of $k$-mer count distribution
-and our bounding condition results in a practical algorithm close to $O(wL)$ in time complexity,
+and our algorithm is practically close to $O(wL)$ in time complexity,
 enabling the efficient identification of LC strings in long context windows.
 
 \section{Methods}
@@ -90,8 +90,7 @@ $x\in\Sigma^*$ is a DNA string and $|x|$ is its length.
 $t\in\Sigma^k$ is a $k$-mer.
 For $|x|\ge k$, $c_x(t)$ is the occurrence of $k$-mer $t$ in $x$;
 $\ell(x)=\sum_t c_x(t)=|x|-k+1$ is the total number of $k$-mers in $x$.
-Introduce $\vec{c}_x$ as the count array over all $k$-mers
-and $\kappa(x)$ as the set of distinct $k$-mers in $x$.
+$\vec{c}_x$ denotes the count array over all $k$-mers.
 
 In this article, we assume there is one long genome string of length $L$.
 We use closed interval $[i,j]$ to denote the substring starting at $i$
@@ -101,7 +100,7 @@ We may use ``interval'' and ``subsequence'' interchangeably.
 \subsection{Modeling $k$-mer counts}
 
 Suppose symbols in $\Sigma$ all occur at equal frequency.
-Then $c_x(t)\sim{\rm Poisson}(\lambda)$ where $\lambda=\ell(x)/4^k$.
+Then for all $k$-mer $t$, $c_x(t)\sim{\rm Poisson}(\lambda)$ where $\lambda=\ell(x)/4^k$.
 Let
 $$
 p(n|\lambda)\triangleq\frac{\lambda^n}{n!}e^{-\lambda}
@@ -126,8 +125,8 @@ To get an intuition about $P(\vec{c}_x)$, suppose $\ell(x)\ll4^k$.
 In this case, $c_x(t)$ will be mostly 0 or 1 for a random string
 and the last term in Eq.~(\ref{eq:P}) will be close to 0.
 Given an LC string of the same length,
-we will see more $c_x(t)\ge2$ which will reduce $\log P(\vec{c}_x)$
--- the probability of an LC string is lower under this model.
+we will see more $c_x(t)$ of 2 or higher, which will reduce $\log P(\vec{c}_x)$.
+Thus the probability of an LC string is lower under this model.
 
 Although $\log P(\vec{c}_x)$ can be used to compare the complexity of strings of the same length,
 it does not work well for strings of different lengths because $\log P(\vec{c}_x)$ decreases with $\ell(x)$.
@@ -153,10 +152,10 @@ $Q(\vec{c}_x)$ is higher for LC string $x$.
 
 \subsection{Scoring low-complexity intervals}
 
-As base frequencies vary with the GC content
-and genome sequences are rarely random,
-$Q(\vec{c}_x)$ still increases with $\ell(x)$ on real data.
-Our final complexity scoring function takes the form
+%As base frequencies vary with the GC content
+%and genome sequences are rarely random,
+%$Q(\vec{c}_x)$ still increases with $\ell(x)$ on real data.
+To put a threshold on the complexity, we finally use the following function to score string complexity:
 \begin{equation}\label{eq:S}
 S(\vec{c}_x)\triangleq Q(\vec{c}_x)-T\cdot\ell(x)=\sum_t\log c_x(t)!-T\cdot\ell(x)-f\left(\frac{\ell(x)}{4^k}\right)
 \end{equation}
@@ -164,7 +163,7 @@ Threshold $T$ controls the level of complexity in the output.
 It defaults to $0.6$, less than $\log 2$.
 If $S(\vec{c}_x)>0$, $x$ is considered to contain an LC substring.
 Note that we often do not want to classify the entire $x$ as an LC substring in this case
-because the concatenation of a highly repetitive sequence and a randem sequence
+because the concatenation of a highly repetitive sequence and a random sequence
 could still lead to a positive score.
 
 Recall that we may use close intervals to represent substrings.
@@ -175,8 +174,8 @@ U(i,j)&\triangleq&\sum_t\log c_{[i,j]}(t)!-T\cdot\ell([i,j])\\
 &=&U(i,j-1)+\log c_{[i,j]}([j-k+1,j])-T
 \end{eqnarray*}
 We can thus compute the complexity scores of all prefixes of $[i,j]$
-by scanning each base in the interval from left to right.
-We can similarly compute all suffix scores from right to left.
+by scanning each base in the interval from left to right;
+we can similarly compute all suffix scores from right to left.
 
 \subsection{Finding low-complexity regions}
 
@@ -254,12 +253,12 @@ The time complexity of {\sc Backward}() is $O(w)$.
 
 Given a candidate start position $i$,
 function {\sc Forward}() returns $j'=\argmax_{i<j'\le j} S(i,j')$.
-$[i,j]$ will be a good LC interval if $j'=j$ (Line 7).
+$[i,j]$ will be a good LC interval if and only if $j'=j$ (Line 7).
 We call {\sc Forward}() in the ascending order of candidate start positions (line 4).
 We may skip a start position if it is contained in an interval found from previous {\sc Forward}() calls (line 5).
-This is an inexact heuristic as it is possible for a good LC interval to start in another good interval.
+This is an approximation as it is possible for a good LC interval to start in another good interval.
 An alternative heuristic is to only apply {\sc Forward}() to the smallest candidate start in $B$.
-This leads to a guaranteed $O(w)$ {\sc FindStart}().
+This leads to a guaranteed $O(w)$ with {\sc FindStart}().
 In practice, the two algorithms have almost identical runtime.
 We use Algorithm~\ref{algo:LC1} in longdust as it is closer to the exact algorithm.
 
@@ -277,7 +276,7 @@ The default longdust output is strand symmetric.
 
 SDUST~\citep{Morgulis:2006aa} uses the following complexity scoring function:
 $$
-S'(\vec{c}_x)=\frac{1}{\ell(x)}\sum_t\frac{c_x(t)(c_x(t)-1)}{2}-T
+S_S(\vec{c}_x)=\frac{1}{\ell(x)}\sum_t\frac{c_x(t)(c_x(t)-1)}{2}-T
 $$
 This function grows linearly with $\ell(x)$ for $\ell(x)\ge4^k$,
 while our scoring function grows more slowly in the logarithm scale.
@@ -290,11 +289,136 @@ and tests a new candidate interval against the list.
 The {\sc FindStart}() equivalent of SDUST is $O(w^3)$ in time, impractical for long windows.
 SDUST hardcodes $k=3$ and uses $w=64$ by default for acceptable performance.
 
+\subsection{Scoring with Shannon entropy}
+
+Let $p_x(t)=c_x(t)/\ell(x)$.
+The Shannon entropy of string $x$ is
+$$
+H(\vec{c}_x)\triangleq-\sum_tp_x(t)\log p_x(t)=\log\ell(x)-\frac{1}{\ell(x)}\sum_t c_x(t)\log c_x(t)
+$$
+When $\ell(x)\le4^k$, $H(\vec{c}_x)$ reaches the maximum value of $\log\ell(x)$ at $p_x(t)=1/\ell(x)$.
+$H(\vec{c}_x)$ also grows with $\ell(x)$.
+For $\ell(x)\le4^k$, define
+$$
+S_E(\vec{c}_x)\triangleq\log\ell(x)-H(\vec{c}_x)-T=\frac{1}{\ell(x)}\sum_t c_x(t)\log c_x(t)-T
+$$
+We adapted longdust for $S_E$ and found using $S_E$ is more than twice as slow.
+We suspected some longdust heuristics did not work well with $S_E$, but we did not investigate further.
+
 \section{Results}
+
+\subsection{Low-complexity regions in T2T-CHM13}
+
+\begin{table}[tb]
+\caption{Command lines and resource usage for T2T-CHM13\label{tab:cmd}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}llll@{\extracolsep\fill}}
+\toprule
+Tool & CPU time & Mem (G) & Command line \\
+\midrule
+longdust & 1h3m   & 0.47 & (default) \\
+SDUST    & 4m15s  & 0.23 & {\tt -t30} \\
+pytrf    & 2h39m  & 0.70 & {\tt -M500} \\
+TRF      & 12h52m & 7.49 & {\tt 2 7 7 80 10 50 500 -l12} \\
+TANTAN   & 32m50s & 1.28 & {\tt -w500 -s.85} \\
+ULTRA    & 146h4m & 33.31& {\tt -p500 -t16} \\
+\botrule
+\end{tabular*}
+\begin{tablenotes}\setlength\itemsep{0.0em}
+Performance measured on a Linux server equipped with Intel Xeon Gold 6130 CPU and 512GB memory.
+\end{tablenotes}
+\end{table}
+
+\begin{figure}[tb]
+\includegraphics[width=\columnwidth]{len}
+\caption{Lengths of low-complexity regions.
+Low-complexity (LC) regions identified by each tool are first intersected with centromeric satellite annotation.
+The remainder is then intersected with longdust, TRF and SDUST in order.
+There are no overlaps between stacks.
+The total height is the length of LC regions found by each tool.
+Alternative settings --
+``TRF-c4'': requiring $\ge4$ copies of the repeat unit;
+``ULTRA-s30'': requiring score $\ge30$ in ULTRA output;
+``TANTAN-95'': run with ``{\tt -s.95}'' for more stringent output.
+}\label{fig:len}
+\end{figure}
+
+We applied longdust, SDUST v0.1~\citep{Morgulis:2006aa},
+pytrf v1.4.2~\citep{Du:2025aa},
+TRF v4.10~\citep{Benson:1999aa},
+TANTAN v51~\citep{Frith:2011aa},
+and ULTRA v1.20~\citep{Olson:2024aa}
+to the T2T-CHM13 human genome~\citep{Nurk:2022up}.
+Command lines for TRF, TANTAN and ULTRA were adopted from \citet{Olson:2024aa},
+with the maximum period set to 500 (Table~\ref{tab:cmd}).
+Notably, TRF would not finish in days with the default option {\tt -l}.
+An even larger {\tt -l} helps performance at the cost of memory.
+
+Longdust finds 277.1Mb of LC regions with 224.3Mb overlapping with centromeric satellite annotated by the telomere-to-telomere (T2T) consortium (Fig.~\ref{fig:len}).
+Of the remaining 52.7Mb, 34.1Mb overlaps with TRF; 15.4Mb of the remainder (18.6Mb) is found by SDUST.
+Only 3.2Mb is left, suggesting most longdust LC regions fall in centromeres or are found by TRF or SDUST.
+
+TRF, the most popular tandem repeat finder, finds 274.5Mb of tandem repeats,
+244.0Mb of which have $\ge4$ copies of repeat units.
+97.9\% of the 244.0Mb are identified by longdust.
+TRF additionally reports tandem repeats with $<4$ repeat units.
+Only 14.8\% of them overlap with longdust results.
+Longdust misses repeats with low copy numbers.
+In fact, under the default threshold $T=0.6$,
+the minimum numbers of exact copies longdust can find is approximately:
+$$
+3+\frac{k-1}{r}+\frac{3T-\log2-\log3}{\log4-T}\approx3.01+\frac{k-1}{r}
+$$
+This assumes the repeat unit length $r>k$, $f(\cdot)=0$ and all $k$-mers are unique within the repeat unit.
+
+As to other tools, ULTRA outputs the largest tandem repeat regions (Fig.~\ref{fig:len}).
+Nevertheless, if we raise its score threshold to 30,
+the total region length is similar to that of TRF.
+TANTAN also reports many regions not found by longdust, TRF or SDUST.
+Increasing its probability threshold only marginally change the relative portions.
+Pytrf cannot effectively identify alpha satellite with $\sim$170bp repeat units,
+even though it was set to find tandem repeats with unit up to 500bp.
+SDUST is the only other method that looks for LC regions not limited to tandem repeats.
+With a 64bp window size, it naturally misses tandem repeats with long units, including all alpha satellite.
+
+\subsection{Low-complexity regions in a gorilla genome}
+
+The near T2T gorilla genome (AC:GCF\_029281585.2; \citealp{Yoo:2025aa}) is 3546Mb in size, 428Mb larger than the human T2T-CHM13 genome.
+We ran longdust on the gorilla genome for 1.4 hours and found 656.8Mb of LC regions.
+That is 379.7Mb larger than the LC regions in T2T-CHM13.
+The genome size difference is primarily driven by LC regions.
+
+To further confirm this observation,
+we extracted 298.8Mb of regions in the gorilla genome that are $\ge10$kb in length without any 51-mer exact matches to 472 human genomes~\citep{Li:2024ac}.
+99.7\% of them are marked as LC regions by longdust and none of them are alpha satellite.
+95.8\% of these gorilla-specific regions are distributed within 15Mb from telomeres,
+broadly in line with \citet{Yoo:2025aa}.
+We also ran TRF on the gorilla genome.
+It did not finish in 30 hours even with option ``{\tt -l20}'' which is supposed to reduce runtime.
 
 \section{Discussions}
 
+Implemented in the C programming language, longdust is a fast and lightweight command-line tool for
+identifying low-complexity regions.
+It rarely finds LC regions not reported by TRF plus SDUST
+and can recover more tandem repeats with $\ge4$ copies of repeat units.
+Longdust provides basic APIs in C and can also be used as a programming library.
+
+From the theoretical point of view, longdust uses an approximate algorithm.
+It tests LC intervals ending at each position with Algorithm~\ref{algo:LC1},
+but has not sufficiently exploited dependencies between positions.
+It will be interesting to see whether there is an exact $O(wL)$ algorithm under the longdust formulation
+or a meaningful alternative formulation that leads fast implementations.
+
+A major practical limitation of longdust is the restricted window size.
+The genome of Woodhouse's scrub jays, for example, contains satellite with a 12kb repeat unit~\citep{Edwards:2025aa}.
+This would be missed by longdust under the default setting.
+Increasing the window size would make longdust considerably slower.
+This is partly due to the $O(wL)$ time complexity and partly due to the speedup strategies in longdust that are more effective given $\ell(x)\ll 4^k$.
+It would be ideal to have an algorithm that remains efficient given large windows or, better, does not require specified window sizes.
+
 \section*{Acknowledgments}
+
+We would like to thank Qian Qin for evaluating the effect of low-complexity regions in structural variant calling.
 
 \section*{Author contributions}
 
@@ -307,7 +431,7 @@ None declared.
 
 \section*{Funding}
 
-This work is supported by National Institute of Health grant R01HG010040, U01HG013748 and U41HG010972 (to H.L.).
+This work is supported by US National Institute of Health grant R01HG010040, R01HG014175, U01HG013748, U41HG010972, and U24CA294203 (to H.L.).
 
 \section*{Data availability}
 
