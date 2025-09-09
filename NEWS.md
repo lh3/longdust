@@ -1,3 +1,15 @@
+Release 1.2-r75 (8 September 2025)
+----------------------------------
+
+Notable changes:
+
+ * Bugfix: wrong formula. Correcting the formula slows down longdust by 60-80%,
+   but errors like this need to be fixed. The output becomes ~1% smaller.
+
+(1.2: 8 September 2025, r75)
+
+
+
 Release 1.1-r68 (4 September 2025)
 ----------------------------------
 
