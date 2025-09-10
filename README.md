@@ -11,6 +11,11 @@ Longdust also overlaps with tandem repeat finders (e.g. [TRF][trf],
 tuned for tandem repeats with two or three copies, but may report low-complexity regions
 without clear tandem structure. Longdust complements TRF etc to some extent.
 
+If you use longdust, please cite:
+
+> Li H and Li B (2025) Finding low-complexity DNA sequences with longdust.
+> [arXiv:2509.07357](https://arxiv.org/abs/2509.07357)
+
 ## Comparison to other tools
 
 Longdust finds 277.1Mb of LCRs from the T2T-CHM13 analysis set. 226.5Mb of them
