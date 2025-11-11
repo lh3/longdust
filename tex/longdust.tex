@@ -95,7 +95,7 @@ $\vec{c}_x$ denotes the count array over all $k$-mers.
 In this article, we assume there is one long genome string of length $L$.
 We use closed interval $[i,j]$ to denote the substring starting at $i$
 and ending at $j$, including the end points $i$ and $j$.
-We may use ``interval'' and ``subsequence'' interchangeably.
+We may use ``interval'' and ``substring'' interchangeably.
 
 \subsection{Modeling $k$-mer counts}
 
@@ -112,15 +112,20 @@ p(\ell|\lambda)\approx\frac{e^{-\lambda}}{\sqrt{2\pi\ell}}\cdot\left(\frac{e}{4^
 $$
 with the Sterling formula -- $p(\ell|\lambda)$ is very close to 0.
 This suggests Poisson remains a good approximation.
+It is possible to start the derivation with a binomial distribution
 
 The composite probability of string $x$ can be modeled by
-$$
+\begin{equation}\label{eq:P0}
 P(\vec{c}_x)=\prod_{t\in\Sigma^k}p(c_x(t)|\lambda)
-$$
+\end{equation}
 We have
 \begin{equation}\label{eq:P}
 \log P(\vec{c}_x)=4^k\lambda(\log\lambda-1)-\sum_t\log c_x(t)!
 \end{equation}
+The derivation from Eq.~(\ref{eq:P0}) to Eq.~(\ref{eq:P}) is exact.
+It is possible to derive Eq.~(\ref{eq:P}) starting from a binomial distribution, instead of Poisson,
+but we would introduce other approximation to reach a convenient form for implementation.
+
 To get an intuition about $P(\vec{c}_x)$, suppose $\ell(x)\ll4^k$.
 In this case, $c_x(t)$ will be mostly 0 or 1 for a random string
 and the last term in Eq.~(\ref{eq:P}) will be close to 0.
@@ -161,8 +166,17 @@ S(\vec{c}_x)\triangleq Q(\vec{c}_x)-T\cdot\ell(x)=\sum_t\log c_x(t)!-T\cdot\ell(
 \end{equation}
 Threshold $T$ controls the level of complexity in the output.
 It defaults to $0.6$, less than $\log 2$.
+At $k=7$, $f(\ell/4^k)$ is close to 0 for small $\ell$.
+$0.6\ell$ is the larger term within the default window size of 5kb (Fig.~\ref{fig:f}).
+
+\begin{figure}[b]
+\centering
+\includegraphics[width=0.7\columnwidth]{f-func}
+\caption{Functions related to string complexity scoring in Eq.~(\ref{eq:S}).}\label{fig:f}
+\end{figure}
+
 If $S(\vec{c}_x)>0$, $x$ is considered to contain an LC substring.
-Note that we often do not want to classify the entire $x$ as an LC substring in this case
+However, we often do not want to classify the entire $x$ as an LC substring in this case
 because the concatenation of a highly repetitive sequence and a random sequence
 could still lead to a positive score.
 
@@ -266,9 +280,13 @@ Function {\sc FindStart}() finds the longest good LC interval ending at one posi
 We apply the function to every position in the genome to find all good LC intervals.
 We can skip $j$ if $[j-k+1,j]$ is unique in $[j-w+1,j]$ because the forward pass would not reach $j$ in this case.
 We also introduce a heuristic to extend a good LC interval $[j-w,j-1]$ to $[j-w+1,j]$ without calling {\sc FindStart}().
-We additionally use an X-drop heuristic~\citep{Altschul:1997vn} to avoid connecting two good LC intervals occasionally.
 
-The overall longdust algorithm is inexact and may result in slightly different LC regions (21kb out of 278Mb in T2T-CHM13).
+Our definition may classify a short non-repetitive interval to LC if it is flanked by highly repetitive LC intervals.
+We additionally use an X-drop heuristic~\citep{Altschul:1997vn} to alleviate this case.
+On the T2T-CHM13 genome, the total length of LC intervals is 0.5\% shorter with X-drop.
+The heuristic has a minor effect.
+
+The overall longdust algorithm is inexact and may result in slightly different LC regions on opposite strands (21kb out of 278Mb in T2T-CHM13).
 We run the algorithm on both the forward and the reverse strand of the input sequences and merge the resulting intervals.
 The default longdust output is strand symmetric.
 
@@ -311,16 +329,16 @@ We suspected some longdust heuristics did not work well with $S_E$, but we did n
 
 \begin{table}[tb]
 \caption{Command lines and resource usage for T2T-CHM13\label{tab:cmd}}
-\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}llll@{\extracolsep\fill}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lrrl@{\extracolsep\fill}}
 \toprule
-Tool & CPU time & Mem (G) & Command line \\
+Tool & $t_{\rm CPU}$ (h) & Mem (G) & Command line \\
 \midrule
-longdust & 1h3m   & 0.47 & (default) \\
-SDUST    & 4m15s  & 0.23 & {\tt -t30} \\
-pytrf    & 2h39m  & 0.70 & {\tt -M500} \\
-TRF      & 12h52m & 7.49 & {\tt 2 7 7 80 10 50 500 -l12} \\
-TANTAN   & 32m50s & 1.28 & {\tt -w500 -s.85} \\
-ULTRA    & 146h4m & 33.31& {\tt -p500 -t16} \\
+longdust & 0.94   & 0.47 & (default) \\
+SDUST    & 0.07   & 0.23 & {\tt -t30} \\
+pytrf    & 2.64   & 0.70 & {\tt -M500} \\
+TRF      & 12.83  & 7.49 & {\tt 2 7 7 80 10 50 500 -l12} \\
+TANTAN   & 0.56   & 1.28 & {\tt -w500 -r 1e-9} \\
+ULTRA    & 146.07 & 33.31& {\tt -p500 -t16} \\
 \botrule
 \end{tabular*}
 \begin{tablenotes}\setlength\itemsep{0.0em}
@@ -393,7 +411,7 @@ we extracted 298.8Mb of regions in the gorilla genome that are $\ge10$kb in leng
 95.8\% of these gorilla-specific regions are distributed within 15Mb from telomeres,
 broadly in line with \citet{Yoo:2025aa}.
 We also ran TRF on the gorilla genome.
-It did not finish in 30 hours even with option ``{\tt -l20}'' which is supposed to reduce runtime.
+It did not finish in a week with option ``{\tt -l20}'' which is supposed to reduce runtime.
 
 \section{Discussions}
 
