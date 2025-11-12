@@ -150,9 +150,9 @@ $$
 Q(\vec{c}_x)\triangleq H(\lambda)-\log P(\vec{c}_x)=\sum_t\log c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
 $$
 where
-$$
+\begin{equation}\label{eq:f}
 f(\lambda)\triangleq4^ke^{-\lambda}\sum_{n=0}^\infty\log n!\cdot\frac{\lambda^n}{n!}
-$$
+\end{equation}
 $Q(\vec{c}_x)$ is higher for LC string $x$.
 
 \subsection{Scoring low-complexity intervals}
@@ -290,6 +290,40 @@ The overall longdust algorithm is inexact and may result in slightly different L
 We run the algorithm on both the forward and the reverse strand of the input sequences and merge the resulting intervals.
 The default longdust output is strand symmetric.
 
+\subsection{Adjusting for non-equal $k$-mer frequencies}
+
+We assume each $k$-mer $t$ occurs at frequency $4^{-k}$ when deriving Eq.~(\ref{eq:S}).
+It is possible to relax this assumption.
+Let $q_t$ be the expected frequency of $t$ with $\sum_{t\in\Sigma^k}q_t=1$.
+For convenience, introduce $r_t\triangleq4^kq_t$.
+Under equal frequency, $q_t=4^{-k}$ and thus $r_t=1$.
+For general $q_t$, Eq.~(\ref{eq:P}) becomes
+$$
+\log P(\vec{c}_x)=4^k\lambda(\log\lambda-1)-\sum_{t\in\Sigma^k}\log c_x(t)!+\sum_{t\in\Sigma^k}c_x(t)\log r_t
+$$
+The revised $H(\lambda)$ is more involved:
+\begin{eqnarray*}
+H(\lambda)&=&\sum_t\sum_{n=0}^{\infty}p(n|\lambda r_t)\log p(n|\lambda r_t)\\
+&=&4^k\lambda(\log\lambda-1)+\lambda\sum_t r_t\log r_t\\
+&&-\sum_t e^{-\lambda r_t}\sum_{n=0}^{\infty}\log n!\cdot\frac{(\lambda r_t)^n}{n!}
+\end{eqnarray*}
+We can similarly define the scoring function:
+\begin{eqnarray*}
+S(\vec{c}_x)&=&H(\lambda)-\log P(\vec{c}_x)-T\cdot\ell(x)\\
+&=&\sum_t\log c_x(t)!-\sum_tc_x(t)\log r_t-T'\cdot\ell(x)-f(4^{-k}\ell(x))
+\end{eqnarray*}
+where
+$$
+f(\lambda)=\sum_t e^{-\lambda r_t}\sum_{n=0}^{\infty}\log n!\cdot\frac{(\lambda r_t)^n}{n!}
+$$
+and
+$$
+T'=T-4^{-k}\sum_t r_t\log r_t=T-\sum_t q_t\log r_t
+$$
+The last term in $T'$ is the relative entropy between $\{q_t\}$ and the uniform distribution.
+It is thus always non-negative.
+This term reduces the score threshold, making it easier to call LC intervals.
+
 \subsection{Comparison to SDUST}
 
 SDUST~\citep{Morgulis:2006aa} uses the following complexity scoring function:
@@ -337,7 +371,7 @@ longdust & 0.94   & 0.47 & (default) \\
 SDUST    & 0.07   & 0.23 & {\tt -t30} \\
 pytrf    & 2.64   & 0.70 & {\tt -M500} \\
 TRF      & 12.83  & 7.49 & {\tt 2 7 7 80 10 50 500 -l12} \\
-TANTAN   & 0.56   & 1.28 & {\tt -w500 -r 1e-9} \\
+TANTAN   & 0.56   & 1.28 & {\tt -w500} \\
 ULTRA    & 146.07 & 33.31& {\tt -p500 -t16} \\
 \botrule
 \end{tabular*}
@@ -354,9 +388,12 @@ The remainder is then intersected with longdust, TRF and SDUST in order.
 There are no overlaps between stacks.
 The total height is the length of LC regions found by each tool.
 Alternative settings --
+``longdust-w8k'': window size $w=8000$;
+``longdust-t.5'': score threshold $T=0.5$;
+``longdust-k8'': using 8-mers;
 ``TRF-c4'': requiring $\ge4$ copies of the repeat unit;
-``ULTRA-s30'': requiring score $\ge30$ in ULTRA output;
-``TANTAN-95'': run with ``{\tt -s.95}'' for more stringent output.
+``TANTAN-r1e-9'': run with ``-r 1e-9'';
+``ULTRA-s30'': requiring score $\ge30$ in the output.
 }\label{fig:len}
 \end{figure}
 
@@ -366,14 +403,19 @@ TRF v4.10~\citep{Benson:1999aa},
 TANTAN v51~\citep{Frith:2011aa},
 and ULTRA v1.20~\citep{Olson:2024aa}
 to the T2T-CHM13 human genome~\citep{Nurk:2022up}.
-Command lines for TRF, TANTAN and ULTRA were adopted from \citet{Olson:2024aa},
-with the maximum period set to 500 (Table~\ref{tab:cmd}).
+The maximum period was set to 500 (Table~\ref{tab:cmd}).
 Notably, TRF would not finish in days with the default option {\tt -l}.
-An even larger {\tt -l} helps performance at the cost of memory.
+With {\tt -l30}, TRF could run in 11 hours using 17.82GB memory at the peak.
+
+Due to the lack of ground truth, we could not calculate the accuracy of longdust.
+We instead checked how often longdust reports regions unique to itself
+and how often it misses regions reported by other tools, especially by two or more of them.
 
 Longdust finds 277.1Mb of LC regions with 224.3Mb overlapping with centromeric satellite annotated by the telomere-to-telomere (T2T) consortium (Fig.~\ref{fig:len}).
 Of the remaining 52.7Mb, 34.1Mb overlaps with TRF; 15.4Mb of the remainder (18.6Mb) is found by SDUST.
 Only 3.2Mb is left, suggesting most longdust LC regions fall in centromeres or are found by TRF or SDUST.
+Longdust uses three parameters: $k$-mer size, window size $w$ and score threshold $T$.
+Varying these parameters do not greatly alter the results.
 
 TRF, the most popular tandem repeat finder, finds 274.5Mb of tandem repeats,
 244.0Mb of which have $\ge4$ copies of repeat units.
@@ -388,15 +430,44 @@ $$
 $$
 This assumes the repeat unit length $r>k$, $f(\cdot)=0$ and all $k$-mers are unique within the repeat unit.
 
-As to other tools, ULTRA outputs the largest tandem repeat regions (Fig.~\ref{fig:len}).
+ULTRA outputs 68.2Mb of regions not reported by longdust, TRF or SDUST.
 Nevertheless, if we raise its score threshold to 30,
-the total region length is similar to that of TRF.
-TANTAN also reports many regions not found by longdust, TRF or SDUST.
-Increasing its probability threshold only marginally change the relative portions.
-Pytrf cannot effectively identify alpha satellite with $\sim$170bp repeat units,
+the total region length is similar to that of TRF
+with most of repeats of $\ge$4 copies captured by longdust.
+Under the default setting, TANTAN finds the largest LC regions missed by longdust, TRF or SDUST.
+Decreasing the repeat starting threshold from 0.005 to $10^{-9}$ greatly reduces its unique regions from 148.5Mb to 24.5Mb.
+We suspect the remaining regions unique to TANTAN may have low copy number but we cannot control its output.
+TANTAN can optionally generate repeat units but this mode is six times as slow and reports only 27\% of regions in the default mode.
+
+As to other tools, pytrf cannot effectively identify alpha satellite with $\sim$170bp repeat units,
 even though it was set to find tandem repeats with unit up to 500bp.
-SDUST is the only other method that looks for LC regions not limited to tandem repeats.
-With a 64bp window size, it naturally misses tandem repeats with long units, including all alpha satellite.
+With a 64bp window size, SDUST naturally misses tandem repeats with long units, including all alpha satellite.
+
+\subsection{Behaviors in long satellite repeats}
+
+Although longdust, TRF, TANTAN and ULTRA report similar amount of human satellites,
+the LC block sizes vary greatly.
+We will take the centromeric satellite of chromosome 11 for an example.
+Around this centromere, longdust reports a continuous block of 3.5Mb from 50,999,020 to 54,488,059 on T2T-CHM13.
+TRF finds a nearly identical region, with the ending position shifted by only 3bp.
+In contrast, although ULTRA finds 99.86\% of this region,
+it breaks them into many smaller blocks.
+The longest block is 120kb in size.
+TANTAN under the default setting misses 2.3\% of this long alpha array and its output is more fragmented.
+The longest block is only 1587bp.
+With ``-r 1e-9'', TANTAN misses 7.6\% of this satellite.
+Across all satellite regions annotated on T2T-CHM13,
+the N50 block size is 2.9Mb, 2.0Mb, 10.2kb and 340bp for longdust, TRF, ULTRA and TANTAN, respectively.
+Longdust reports the longest blocks probably because it merges satellites of different types,
+which is a weakness in comparison to TRF.
+
+One application of LC masking is to speed up cross-species whole-genome alignment.
+90.8\% of satellites found by longdust lie in blocks longer than 10kb
+and conversely, 99.2\% of blocks longer than 10kb fall in annotated satellites.
+By setting a block length threshold, we can mask the bulk of satellite without affecting the rest of the genome.
+A similar strategy works for TRF that also reports long blocks.
+We would need to stitch shorter blocks reported ULTRA and TANTAN to use this strategy,
+which would add another layer of complexity.
 
 \subsection{Low-complexity regions in a gorilla genome}
 
@@ -411,14 +482,14 @@ we extracted 298.8Mb of regions in the gorilla genome that are $\ge10$kb in leng
 95.8\% of these gorilla-specific regions are distributed within 15Mb from telomeres,
 broadly in line with \citet{Yoo:2025aa}.
 We also ran TRF on the gorilla genome.
-It did not finish in a week with option ``{\tt -l20}'' which is supposed to reduce runtime.
+It did not finish in a week with option ``{\tt -l20}''.
 
 \section{Discussions}
 
 Implemented in the C programming language, longdust is a fast and lightweight command-line tool for
 identifying low-complexity regions.
 It rarely finds LC regions not reported by TRF plus SDUST
-and can recover more tandem repeats with $\ge4$ copies of repeat units.
+and can recover most tandem repeats with $\ge4$ copies of repeat units.
 Longdust provides basic APIs in C and can also be used as a programming library.
 
 From the theoretical point of view, longdust uses an approximate algorithm.
@@ -427,8 +498,23 @@ but has not sufficiently exploited dependencies between positions.
 It will be interesting to see whether there is an exact $O(wL)$ algorithm under the longdust formulation
 or a meaningful alternative formulation that leads fast implementations.
 
-A major practical limitation of longdust is the restricted window size.
-The genome of Woodhouse's scrub jays, for example, contains satellite with a 12kb repeat unit~\citep{Edwards:2025aa}.
+In comparison to tandem repeat finding tools such as TRF and ULTRA,
+longdust is unable to report the repeat units in case of tandem repeats.
+This will limit the use cases of longdust.
+Furthermore, unlike TANTAN and ULTRA that model extreme GC content,
+longdust assumes the four types of nucleotides occurring at equal frequency.
+This will lead to enriched LC regions in AT- or GC-rich genomes.
+A solution is to introduce $q_t$ as the expected frequency of $k$-mer $t$.
+Eq.~(\ref{eq:P}) will become
+$$
+\log P(\vec{c}_x)=4^k\lambda(\log\lambda-1)-\sum_{t\in\Sigma^k}\log c_x(t)!+\sum_{t\in\Sigma^k}c_x(t)\log(4^kq_t)
+$$
+
+A potential heuristic is to weight the count of $k$-mer $t$ by $t$'s GC content in Eq.~(\ref{eq:P}).
+We have not explored this strategy.
+
+Another practical limitation of longdust is the restricted window size.
+The genome of Woodhouse's scrub jays, for example, contains satellite with a 18kb repeat unit~\citep{Edwards:2025aa}.
 This would be missed by longdust under the default setting.
 Increasing the window size would make longdust considerably slower.
 This is partly due to the $O(wL)$ time complexity and partly due to the speedup strategies in longdust that are more effective given $\ell(x)\ll 4^k$.
@@ -436,7 +522,9 @@ It would be ideal to have an algorithm that remains efficient given large window
 
 \section*{Acknowledgments}
 
-We would like to thank Qian Qin for evaluating the effect of low-complexity regions in structural variant calling.
+We are grateful to Qian Qin for evaluating the effect of low-complexity regions in structural variant calling,
+and to Maximilian Haeussler for explaining the role of masking low-complexity regions in cross-species alignment.
+We thank one of the reviewers for suggesting better parameters.
 
 \section*{Author contributions}
 

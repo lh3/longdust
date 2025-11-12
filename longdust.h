@@ -7,7 +7,7 @@
 
 typedef struct {
 	int32_t kmer, ws, xdrop_len, approx;
-	double thres;
+	double thres, gc;
 } ld_opt_t;
 
 typedef struct {
