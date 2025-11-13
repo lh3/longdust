@@ -18,8 +18,6 @@
 typedef struct {
 	int32_t k, dummy;
 	double gc;
-	double rel_entropy;
-	double *lr;
 	double dr[LD_MAX_K + 1];
 	int32_t n_dr[LD_MAX_K + 1];
 } ld_raux_t;
@@ -33,21 +31,13 @@ static ld_raux_t *ld_raux_init(void *km, int32_t k, double gc)
 	r = Kcalloc(km, ld_raux_t, 1);
 	for (i = 0; i <= k; ++i)
 		r->dr[i] = pow(gc / 0.5, i) * pow((1.0 - gc) / 0.5, k - i);
-	r->lr = Kcalloc(km, double, n_kmer);
 	for (x = 0; x < n_kmer; ++x) { // traverse each k-mer
 		int32_t n_gc = 0;
 		for (i = 0; i < k; ++i) // count GC on the k-mer
 			if ((x>>2*i&3) == 1 || (x>>2*i&3) == 2)
 				++n_gc;
-		r->lr[x] = log(r->dr[n_gc]);
 		r->n_dr[n_gc]++;
 	}
-	for (i = 0, r->rel_entropy = 0.0; i <= k; ++i)
-		r->rel_entropy += r->n_dr[i] * r->dr[i] * log(r->dr[i]);
-	r->rel_entropy /= n_kmer;
-	for (x = 0; x < n_kmer; ++x)
-		r->lr[x] -= r->rel_entropy;
-	fprintf(stderr, "rel_entropy = %lf; log(r[0]) = %f; log(r[k]) = %f\n", r->rel_entropy, log(r->dr[0]), log(r->dr[k]));
 	return r;
 }
 
@@ -88,7 +78,7 @@ static double *ld_cal_f2(void *km, int32_t k, int32_t max_l, int32_t nn_dr, cons
 			}
 			f[l] += fli * n_dr[i];
 		}
-		//printf("%d\t%lf\n", l, f[l]);
+		printf("%d\t%lf\n", l, f[l]);
 	}
 	return f;
 }
@@ -153,7 +143,6 @@ struct ld_data_s {
 	int32_t *ht, *ht_for;
 	int32_t max_test, n_for_pos;
 	ld_forpos_t *for_pos;
-	ld_raux_t *r;
 	// output
 	int64_t n_intv, m_intv;
 	ld_intv_t *intv;
@@ -178,8 +167,10 @@ ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
 	ld->opt = opt;
 	ld->ht = Kcalloc(km, int32_t, 1U<<2*opt->kmer);
 	if (opt->gc > 0.0 && opt->gc < 1.0) {
-		ld->r = ld_raux_init(km, opt->kmer, opt->gc);
-		ld->f = ld_cal_f2(km, opt->kmer, opt->ws + 1, opt->kmer + 1, ld->r->n_dr, ld->r->dr);
+		ld_raux_t *r;
+		r = ld_raux_init(km, opt->kmer, opt->gc);
+		ld->f = ld_cal_f2(km, opt->kmer, opt->ws + 1, opt->kmer + 1, r->n_dr, r->dr);
+		kfree(km, r);
 	} else {
 		ld->f = ld_cal_f(km, opt->kmer, opt->ws + 1);
 	}
@@ -205,17 +196,8 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld->for_pos);
 	kdq_destroy(uint32_t, ld->q);
 	kfree(km, ld->c); kfree(km, ld->f);
-	if (ld->r) {
-		kfree(km, ld->r->lr);
-		kfree(km, ld->r);
-	}
 	kfree(km, ld->ht);
 	kfree(km, ld);
-}
-
-static inline double ld_gc_term(const ld_data_t *ld, uint32_t x)
-{
-	return (x&1) == 0 && ld->r? - ld->r->lr[x>>1] : 0.0;
 }
 
 static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, double max_back, int32_t *ht)
@@ -226,7 +208,7 @@ static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, double max_back, int32
 	memset(ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
 	for (i = i0, l = 1, s = sl = 0.0; i < kdq_size(ld->q); ++i, ++l) {
 		uint32_t x = kdq_at(ld->q, i);
-		s += (x&1? 0 : ld->c[++ht[x>>1]]) - opt->thres + ld_gc_term(ld, x);
+		s += (x&1? 0 : ld->c[++ht[x>>1]]) - opt->thres;
 		sl = s - ld->f[l];
 		if (sl >= max_sf) max_sf = sl, max_i = i;
 		if (sl > max_back + 1e-6) break;
@@ -245,7 +227,7 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 	ld->n_for_pos = 0;
 	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = sw = 0.0; i >= 0; --i, ++l) { // backward
 		uint32_t x = kdq_at(ld->q, i);
-		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres + ld_gc_term(ld, x);
+		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
 		sl = s - ld->f[l]; // this is the score
 		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb) // store positions where forward may be needed
 			ld->for_pos[ld->n_for_pos].pos = i + 1, ld->for_pos[ld->n_for_pos++].max = max_sb;
@@ -281,7 +263,7 @@ static inline int32_t ld_extend(ld_data_t *ld)
 	int32_t l = kdq_size(ld->q) - 1;
 	double diff;
 	if (x&1) return -1;
-	diff = ld->c[ld->ht[x>>1] + 1] + ld_gc_term(ld, x) - (ld->f[l + 1] - ld->f[l]);
+	diff = ld->c[ld->ht[x>>1] + 1] - (ld->f[l + 1] - ld->f[l]);
 	if (diff < ld->opt->thres) return -1; // if this doesn't increase score, don't extend
 	++ld->ht[x>>1];
 	return 0;
@@ -293,7 +275,7 @@ static int32_t ld_if_backward(const ld_data_t *ld, const int32_t *ht, int32_t ma
 	double s = 0.0;
 	for (i = kdq_size(ld->q) - 1, j = 0; i >= 0 && j < max_step; --i, ++j) {
 		uint32_t x = kdq_at(ld->q, i);
-		s += (x&1? 0 : ld->c[ht[x>>1]]) - ld->opt->thres + ld_gc_term(ld, x);
+		s += (x&1? 0 : ld->c[ht[x>>1]]) - ld->opt->thres;
 		if (s < 0.0) return 0;
 	}
 	return 1;
@@ -342,14 +324,13 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 		if (kdq_size(ld->q) >= opt->ws) { // remove from the queue
 			uint32_t *p;
 			p = kdq_shift(uint32_t, ld->q);
-			if ((*p&1) == 0) ht_sum -= ld->c[ht[*p>>1]--] + ld_gc_term(ld, *p);
+			if ((*p&1) == 0) ht_sum -= ld->c[ht[*p>>1]--];
 			if (last_q == 0) --ld->ht[*p>>1];
 			else --last_q; // this needs to be updated as the queue is shifted
 		}
 		kdq_push(uint32_t, ld->q, x<<1|ambi);
 		if (ambi) continue;
-		ht_sum += ld->c[++ht[x]] + ld_gc_term(ld, x<<1|ambi);
-		//printf("%ld\t%lf\n", (long)i, ld_gc_term(ld, x<<1|ambi));
+		ht_sum += ld->c[++ht[x]];
 
 		j = -1;
 		if (ht[x] > 1) { // no need to call the following if x is a singleton in the window; DON'T test ld_is_back() here!
