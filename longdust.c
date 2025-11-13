@@ -18,7 +18,7 @@
 typedef struct {
 	int32_t k, dummy;
 	double gc;
-	double rel_entropy, thres_adj;
+	double rel_entropy;
 	double *lr;
 	double dr[LD_MAX_K + 1];
 	int32_t n_dr[LD_MAX_K + 1];
@@ -45,8 +45,9 @@ static ld_raux_t *ld_raux_init(void *km, int32_t k, double gc)
 	for (i = 0, r->rel_entropy = 0.0; i <= k; ++i)
 		r->rel_entropy += r->n_dr[i] * r->dr[i] * log(r->dr[i]);
 	r->rel_entropy /= n_kmer;
-	r->thres_adj = r->rel_entropy;
-	fprintf(stderr, "thres_adj = %lf; log(r[0]) = %f; log(r[k]) = %f\n", r->rel_entropy, log(r->dr[0]), log(r->dr[k]));
+	for (x = 0; x < n_kmer; ++x)
+		r->lr[x] -= r->rel_entropy;
+	fprintf(stderr, "rel_entropy = %lf; log(r[0]) = %f; log(r[k]) = %f\n", r->rel_entropy, log(r->dr[0]), log(r->dr[k]));
 	return r;
 }
 
@@ -214,7 +215,7 @@ void ld_data_destroy(ld_data_t *ld)
 
 static inline double ld_gc_term(const ld_data_t *ld, uint32_t x)
 {
-	return (x&1) == 0 && ld->r? ld->r->thres_adj - ld->r->lr[x>>1] : 0.0;
+	return (x&1) == 0 && ld->r? - ld->r->lr[x>>1] : 0.0;
 }
 
 static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, double max_back, int32_t *ht)
