@@ -97,7 +97,7 @@ We use closed interval $[i,j]$ to denote the substring starting at $i$
 and ending at $j$, including the end points $i$ and $j$.
 We may use ``interval'' and ``substring'' interchangeably.
 
-\subsection{Modeling $k$-mer counts}
+\subsection{Modeling $k$-mer counts}\label{sec:model}
 
 Suppose symbols in $\Sigma$ all occur at equal frequency.
 Then for all $k$-mer $t$, $c_x(t)\sim{\rm Poisson}(\lambda)$ where $\lambda=\ell(x)/4^k$.
@@ -290,39 +290,45 @@ The overall longdust algorithm is inexact and may result in slightly different L
 We run the algorithm on both the forward and the reverse strand of the input sequences and merge the resulting intervals.
 The default longdust output is strand symmetric.
 
-\subsection{Adjusting for non-equal $k$-mer frequencies}
+\subsection{Adjusting for unequal $k$-mer frequencies}
 
 We assume each $k$-mer $t$ occurs at frequency $4^{-k}$ when deriving Eq.~(\ref{eq:S}).
-It is possible to relax this assumption.
+This assumption does not hold because $k$-mer frequencies are directly correlated with the genome-wide GC content
+which often deviates from 50\%.
+We will extend equations in Section~\ref{sec:model} to more general cases.
+
 Let $q_t$ be the expected frequency of $t$ with $\sum_{t\in\Sigma^k}q_t=1$.
 For convenience, introduce $r_t\triangleq4^kq_t$.
 Under equal frequency, $q_t=4^{-k}$ and thus $r_t=1$.
 For general $q_t$, Eq.~(\ref{eq:P}) becomes
 $$
-\log P(\vec{c}_x)=4^k\lambda(\log\lambda-1)-\sum_{t\in\Sigma^k}\log c_x(t)!+\sum_{t\in\Sigma^k}c_x(t)\log r_t
+\log\tilde{P}(\vec{c}_x)=4^k\lambda(\log\lambda-1)-\sum_{t\in\Sigma^k}\log c_x(t)!+\sum_{t\in\Sigma^k}c_x(t)\log r_t
 $$
 The revised $H(\lambda)$ is more involved:
 \begin{eqnarray*}
-H(\lambda)&=&\sum_t\sum_{n=0}^{\infty}p(n|\lambda r_t)\log p(n|\lambda r_t)\\
-&=&4^k\lambda(\log\lambda-1)+\lambda\sum_t r_t\log r_t\\
-&&-\sum_t e^{-\lambda r_t}\sum_{n=0}^{\infty}\log n!\cdot\frac{(\lambda r_t)^n}{n!}
-\end{eqnarray*}
-We can similarly define the scoring function:
-\begin{eqnarray*}
-S(\vec{c}_x)&=&H(\lambda)-\log P(\vec{c}_x)-T\cdot\ell(x)\\
-&=&\sum_t\log c_x(t)!-\sum_tc_x(t)\log r_t-T'\cdot\ell(x)-f(4^{-k}\ell(x))
+\tilde{H}(\lambda)&=&\sum_t\sum_{n=0}^{\infty}p(n|\lambda r_t)\log p(n|\lambda r_t)\\
+&=&4^k\lambda(\log\lambda-1)+\lambda\sum_t r_t\log r_t - \tilde{f}(\lambda)
 \end{eqnarray*}
 where
 $$
-f(\lambda)=\sum_t e^{-\lambda r_t}\sum_{n=0}^{\infty}\log n!\cdot\frac{(\lambda r_t)^n}{n!}
+\tilde{f}(\lambda)=\sum_t e^{-\lambda r_t}\sum_{n=0}^{\infty}\log n!\cdot\frac{(\lambda r_t)^n}{n!}
 $$
-and
+It may be tempted to define the complexity as follows
+\begin{eqnarray*}
+&&\tilde{H}(\lambda)-\log\tilde{P}(\vec{c}_x)-T\cdot\ell(x)\\
+&=&\sum_t\log c_x(t)!-T\cdot\ell(x)-\tilde{f}(4^{-k}\ell(x))\\
+&&-\left(\sum_tc_x(t)\log r_t-\ell(x)\sum_t q_t\log r_t\right)
+\end{eqnarray*}
+However, such a function mixes $k$-mer counts $c_x(t)$ and background $k$-mer frequency $r_t$.
+A rare $k$-mer may contribute more to the function than a repetitive $k$-mer.
+We could not find a theoretically clean solution.
+Nonetheless, we note that the contribution of $r_t$ mainly comes from the last term in the parenthesis
+and it approaches 0 under large $\ell(x)$ because $c_x(t)\approx\ell(x)q_t$.
+We decide to ignore the term and define the complexity function as
 $$
-T'=T-4^{-k}\sum_t r_t\log r_t=T-\sum_t q_t\log r_t
+\tilde{S}(\vec{c}_x)=\sum_t\log c_x(t)!-T\cdot\ell(x)-\tilde{f}\left(\frac{\ell(x)}{4^k}\right)
 $$
-The last term in $T'$ is the relative entropy between $\{q_t\}$ and the uniform distribution.
-It is thus always non-negative.
-This term reduces the score threshold, making it easier to call LC intervals.
+The only difference from Eq.~(\ref{eq:S}) is that $\tilde{S}$ uses $\tilde{f}$ instead of $f$.
 
 \subsection{Comparison to SDUST}
 
