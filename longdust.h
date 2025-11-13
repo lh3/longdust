@@ -1,7 +1,7 @@
 #ifndef LONGDUST_H
 #define LONGDUST_H
 
-#define LD_VERSION "1.2-r83-dirty"
+#define LD_VERSION "1.2-r84-dirty"
 
 #include <stdint.h>
 

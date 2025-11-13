@@ -78,7 +78,7 @@ static double *ld_cal_f2(void *km, int32_t k, int32_t max_l, int32_t nn_dr, cons
 			}
 			f[l] += fli * n_dr[i];
 		}
-		printf("%d\t%lf\n", l, f[l]);
+		//printf("%d\t%lf\n", l, f[l]);
 	}
 	return f;
 }
