@@ -172,7 +172,7 @@ $0.6\ell$ is the larger term within the default window size of 5kb (Fig.~\ref{fi
 \begin{figure}[b]
 \centering
 \includegraphics[width=0.7\columnwidth]{f-func}
-\caption{Functions related to string complexity scoring in Eq.~(\ref{eq:S}).}\label{fig:f}
+\caption{Function values of $f(\cdot)$ and $\tilde{f}(\cdot)$ in Eq.(\ref{eq:f}) and Eq.(\ref{eq:f2}).}\label{fig:f}
 \end{figure}
 
 If $S(\vec{c}_x)>0$, $x$ is considered to contain an LC substring.
@@ -310,9 +310,9 @@ The revised $H(\lambda)$ is more involved:
 &=&4^k\lambda(\log\lambda-1)+\lambda\sum_t r_t\log r_t - \tilde{f}(\lambda)
 \end{eqnarray*}
 where
-$$
+\begin{equation}\label{eq:f2}
 \tilde{f}(\lambda)=\sum_t e^{-\lambda r_t}\sum_{n=0}^{\infty}\log n!\cdot\frac{(\lambda r_t)^n}{n!}
-$$
+\end{equation}
 It may be tempted to define the complexity as follows
 \begin{eqnarray*}
 &&\tilde{H}(\lambda)-\log\tilde{P}(\vec{c}_x)-T\cdot\ell(x)\\
@@ -329,6 +329,8 @@ $$
 \tilde{S}(\vec{c}_x)=\sum_t\log c_x(t)!-T\cdot\ell(x)-\tilde{f}\left(\frac{\ell(x)}{4^k}\right)
 $$
 The only difference from Eq.~(\ref{eq:S}) is that $\tilde{S}$ uses $\tilde{f}$ instead of $f$.
+As is shown in Fig.~\ref{fig:f}, $\tilde{f}$ is larger than $f$ when the GC content deviates from 50\%.
+This will reduce LC intervals genome-wide.
 
 \subsection{Comparison to SDUST}
 
@@ -507,18 +509,6 @@ or a meaningful alternative formulation that leads fast implementations.
 In comparison to tandem repeat finding tools such as TRF and ULTRA,
 longdust is unable to report the repeat units in case of tandem repeats.
 This will limit the use cases of longdust.
-Furthermore, unlike TANTAN and ULTRA that model extreme GC content,
-longdust assumes the four types of nucleotides occurring at equal frequency.
-This will lead to enriched LC regions in AT- or GC-rich genomes.
-A solution is to introduce $q_t$ as the expected frequency of $k$-mer $t$.
-Eq.~(\ref{eq:P}) will become
-$$
-\log P(\vec{c}_x)=4^k\lambda(\log\lambda-1)-\sum_{t\in\Sigma^k}\log c_x(t)!+\sum_{t\in\Sigma^k}c_x(t)\log(4^kq_t)
-$$
-
-A potential heuristic is to weight the count of $k$-mer $t$ by $t$'s GC content in Eq.~(\ref{eq:P}).
-We have not explored this strategy.
-
 Another practical limitation of longdust is the restricted window size.
 The genome of Woodhouse's scrub jays, for example, contains satellite with a 18kb repeat unit~\citep{Edwards:2025aa}.
 This would be missed by longdust under the default setting.

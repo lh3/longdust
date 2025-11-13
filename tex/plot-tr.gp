@@ -28,9 +28,11 @@ reset
 set out "f-func.eps"
 set xlab "Sequence length (L)"
 set xran [0:5000]
-set yran [0:600]
+set yran [0:700]
 set mxtics 5
 set mytics 5
+set key bot right
 g(x) = 0.6 * x
-plot "f-func.txt" u 1:($3*4**7) t "f(L/4^7)" w l lw 3, \
+plot "f-func.txt" u 1:2 t "f(L/4^7) at 50% GC" w l sm cs lw 3, \
+	"" u 1:3 t "f(L/4^7) at 40% GC" w l sm cs lw 3, \
 	g(x) t "0.6L" w l lw 3
