@@ -1,6 +1,6 @@
 [![Release](https://img.shields.io/github/v/release/lh3/longdust)](https://github.com/lh3/longdust/releases)
 [![BioConda](https://img.shields.io/conda/dn/bioconda/longdust.svg?style=flag&label=BioConda)](https://anaconda.org/bioconda/longdust)
-[![Preprint](https://img.shields.io/badge/arXiv-10.48550/2509.07357-blue)](https://doi.org/10.48550/arXiv.2509.07357)
+[![Preprint](https://img.shields.io/badge/arXiv-2509.07357-blue)](https://doi.org/10.48550/arXiv.2509.07357)
 
 ## Introduction
 
