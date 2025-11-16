@@ -15,11 +15,12 @@ Longdust also overlaps with tandem repeat finders (e.g. [TRF][trf],
 tuned for tandem repeats with two or three copies, but may report low-complexity regions
 without clear tandem structure. Longdust complements TRF etc to some extent.
 
-If you use longdust, please cite:
+You can find the algorithm and comparison to other tools in the following preprint:
 
 > Li H and Li B (2025) Finding low-complexity DNA sequences with longdust.
 > [arXiv:2509.07357](https://arxiv.org/abs/2509.07357)
 
+<!--
 ## Comparison to other tools
 
 Longdust finds 277.1Mb of LCRs from the T2T-CHM13 analysis set. 226.5Mb of them
@@ -105,7 +106,7 @@ changing the output. It also uses BLAST-like X-drop to break at long non-LCR
 intervals. Due to heuristics, longdust may generate slightly different output
 on the reverse complement of the input sequence. For strand symmetry like
 SDUST, longdust takes the union of intervals identified from both strands.
-
+-->
 [sdust]: https://pubmed.ncbi.nlm.nih.gov/16796549
 [trf]: https://github.com/Benson-Genomics-Lab/TRF
 [ultra]: https://github.com/TravisWheelerLab/ULTRA
