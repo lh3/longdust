@@ -38,8 +38,7 @@
 Low-complexity (LC) DNA sequences are compositionally repetitive sequences
 that are often associated with increased variant density and variant calling artifacts.
 While algorithms for identifying LC sequences exist,
-they either lack rigorous mathematical foundation
-or are inefficient with long context windows.
+they rely on heuristics or are inefficient with long context windows.
 \vspace{0.5em}\\
 \textbf{Results:}
 Longdust is a new algorithm that efficiently identifies long LC sequences including centromeric satellite
@@ -56,32 +55,49 @@ Longdust exhibits high performance on real data and high consistency with existi
 
 \section{Introduction}
 
-In computer science, a string is of low complexity (LC) if it is repetitive in composition.
-LC strings tend to be tandemly repetitive and
-most of them can be identified with tandem repeat finding algorithms such as
-TRF~\citep{Benson:1999aa}, TANTAN~\citep{Frith:2011aa}, ULTRA~\citep{Olson:2024aa} and pytrf~\citep{Du:2025aa}.
-These algorithms do not rigorously define string complexity.
-They rely on heuristics to search for impure tandem repeats
-and cannot identify LC strings without clear tandem structures.
-SDUST~\citep{Morgulis:2006aa} is the only widely used algorithm that explicitly defines string complexity
-and finds the exact solutions.
-However, with $O(w^3L)$ time complexity, where $w$ is the window size and $L$ is the genome length,
-SDUST is inefficient given a large $w$ and is thus impractical for finding satellite or tandem repeats with long motifs.
-Furthermore, the complexity scoring function used by SDUST is not backed by rigorous modeling.
-The theoretical properties of LC strings defined this way are unclear.
+A string is of low complexity (LC) if it is repetitive in composition.
+LC strings may lead to spurious homologous matches~\citep{Morgulis:2006aa} and cause variant calling artifacts~\citep{Li:2014aa,Qin:2025aa}.
+In computer science, string complexity can be measured with Kolmogorov complexity~\citep{DBLP:journals/tcs/Kolmogorov98,Silva:2022aa},
+Lempel-Ziv complexity~\citep{DBLP:journals/tit/LempelZ76,Orlov:2004aa}
+or Shannon entropy~\citep{DBLP:journals/bstj/Shannon48}.
+In genomics, topological entropy~\citep{Crochemore:1999aa},
+linguistic complexity~\citep{Troyanskaya:2002aa}
+and Markov additive process~\citep{10.2307/27595858} have also been explored.
+A complication in finding LC regions is
+that we want to identify boundaries of local LC regions,
+instead of classifying an entire string as LC or not.
+Measuring complexity with fixed-sized sliding windows is not adequate, either,
+as we could not pinpoint the boundaries with such methods.
+
+SDUST~\citep{Morgulis:2006aa} is a popular algorithm to identify local LC regions.
+It defines string complexity by running 3-mer counts and finds exact solutions under this definition.
+However, with the $O(w^3L)$ time complexity, where $w$ is the window size and $L$ is the genome length,
+SDUST is inefficient given a large $w$.
+In addition, the complexity scoring function used by SDUST grows quadratically with the string length.
+It tends to classify long strings as LC over short ones.
+A large window size $w$ would make this worse.
+As a result, SDUST is not suitable for finding satellite or tandem repeats with long motifs.
+
+In genomes, LC strings are often tandemly repetitive due to DNA polymerase slippage.
+Such tandem repeats can be identified with tandem repeat finding algorithms such as
+TRF~\citep{Benson:1999aa}, ULTRA~\citep{Olson:2024aa} and pytrf~\citep{Du:2025aa}.
+They report repeat motifs and copy numbers, which are useful in downstream analyses.
+TANTAN~\citep{Frith:2011aa} models tandem patterns but can often identify general LC regions in practice.
+Unlike SDUST, these algorithms do not mathematically define string complexity.
 
 Inspired by SDUST, we sought an alternative way to define the $k$-mer complexity of a string
-and to identify LC regions in a genome.
+and to identify local LC regions in a genome.
 Our complexity scoring function is based on a statistical model of $k$-mer count distribution
 and our algorithm is practically close to $O(wL)$ in time complexity,
 enabling the efficient identification of LC strings in long context windows.
 
 \section{Methods}
 
-Similar to SDUST~\citep{Morgulis:2006aa}, we define the complexity of a DNA string with a function of the $k$-mer counts of the string.
-In this section, we will first model the $k$-mer count distribution of random strings.
-We will then describe the complexity scoring function and the condition on bounding LC substrings in a long string.
-We will compare our method to SDUST in the end.
+Similar to SDUST~\citep{Morgulis:2006aa}, we define the complexity of a DNA string with a function of $k$-mer counts.
+In this section, we will model the $k$-mer count distribution of random strings with each $k$-mer occurring at equal frequency
+and describe the complexity scoring function and the condition on bounding LC substrings in a long string.
+We will then generalize the model to unequal $k$-mer frequency.
+We will also discuss alternative scoring functions such as the SDUST scoring and Shannon entropy.
 
 \subsection{Notations}
 
@@ -90,7 +106,7 @@ $x\in\Sigma^*$ is a DNA string and $|x|$ is its length.
 $t\in\Sigma^k$ is a $k$-mer.
 For $|x|\ge k$, $c_x(t)$ is the occurrence of $k$-mer $t$ in $x$;
 $\ell(x)=\sum_t c_x(t)=|x|-k+1$ is the total number of $k$-mers in $x$.
-$\vec{c}_x$ denotes the count array over all $k$-mers.
+$\vec{c}_x$, of size $4^k$, denotes the count array over all $k$-mers.
 
 In this article, we assume there is one long genome string of length $L$.
 We use closed interval $[i,j]$ to denote the substring starting at $i$
@@ -99,36 +115,27 @@ We may use ``interval'' and ``substring'' interchangeably.
 
 \subsection{Modeling $k$-mer counts}\label{sec:model}
 
-Suppose symbols in $\Sigma$ all occur at equal frequency.
-Then for all $k$-mer $t$, $c_x(t)\sim{\rm Poisson}(\lambda)$ where $\lambda=\ell(x)/4^k$.
-Let
+For a $k$-mer $t\in\Sigma^k$, $q_t$ is its frequency with $\sum_t q_t=1$.
+$\vec{c}_x$ follows a multinomial distribution:
 $$
-p(n|\lambda)\triangleq\frac{\lambda^n}{n!}e^{-\lambda}
+P(\vec{c}_x;\vec{q})=\ell(x)!\prod_{t\in\Sigma^k}\frac{q_t^{c_x(t)}}{c_x(t)!}
 $$
-be the probability mass function of Poisson distribution.
-Notably, although $c_x(t)\le\ell(x)$, given that $\ell(x)\gg1$ in practice,
-$$
-p(\ell|\lambda)\approx\frac{e^{-\lambda}}{\sqrt{2\pi\ell}}\cdot\left(\frac{e}{4^k}\right)^{\ell}\ll 1
-$$
-with the Sterling formula -- $p(\ell|\lambda)$ is very close to 0.
-This suggests Poisson remains a good approximation.
-It is possible to start the derivation with a binomial distribution
-
-The composite probability of string $x$ can be modeled by
-\begin{equation}\label{eq:P0}
-P(\vec{c}_x)=\prod_{t\in\Sigma^k}p(c_x(t)|\lambda)
-\end{equation}
+For convenience, introduce $r_t\triangleq 4^kq_t$.
 We have
 \begin{equation}\label{eq:P}
-\log P(\vec{c}_x)=4^k\lambda(\log\lambda-1)-\sum_t\log c_x(t)!
+\log P(\vec{c}_x;\vec{q})=g(\ell(x))-\sum_t\log c_x(t)!+\sum_tc_x(t)\log r_t
 \end{equation}
-The derivation from Eq.~(\ref{eq:P0}) to Eq.~(\ref{eq:P}) is exact.
-It is possible to derive Eq.~(\ref{eq:P}) starting from a binomial distribution, instead of Poisson,
-but we would introduce other approximation to reach a convenient form for implementation.
+where
+$$
+g(\ell)=\log \ell!-k\ell\log4
+$$
+is a function of string length but does not depend on $k$-mer counts.
 
-To get an intuition about $P(\vec{c}_x)$, suppose $\ell(x)\ll4^k$.
-In this case, $c_x(t)$ will be mostly 0 or 1 for a random string
-and the last term in Eq.~(\ref{eq:P}) will be close to 0.
+To get an intuition about the effect of low-complexity strings,
+suppose $q_t=1/4^k$ and $\ell(x)\ll4^k$.
+In this case, the last term in Eq.~(\ref{eq:P}) is 0
+and $c_x(t)$ is mostly 0 or 1 for a random string.
+$\log P(\vec{c}_x)$ will be close $g(\ell(x))$.
 Given an LC string of the same length,
 we will see more $c_x(t)$ of 2 or higher, which will reduce $\log P(\vec{c}_x)$.
 Thus the probability of an LC string is lower under this model.
@@ -137,43 +144,63 @@ Although $\log P(\vec{c}_x)$ can be used to compare the complexity of strings of
 it does not work well for strings of different lengths because $\log P(\vec{c}_x)$ decreases with $\ell(x)$.
 We would like to scale it to $Q(\vec{c}_x)$ such that
 $Q$ approaches 0 given a random string.
-We note that on the assumption of equal base frequency,
-the average of $\log P(\vec{c}_x)$ can be approximated to
-\begin{eqnarray*}
-H(\lambda)&\triangleq&\sum_{\vec{c}}P(\vec{c})\cdot\sum_t\log p(c_t|\lambda)\\
-&=&4^k\sum_{n=0}^{\infty}p(n|\lambda)\log p(n|\lambda)\\
-&=&4^k\lambda(\log\lambda-1)-4^ke^{-\lambda}\sum_{n=0}^{\infty}\log n!\cdot\frac{\lambda^n}{n!}
-\end{eqnarray*}
-which is the negative entropy of $P$.
-We can thus define
+We note that the mean of $\log P(\vec{c}_x)$
 $$
-Q(\vec{c}_x)\triangleq H(\lambda)-\log P(\vec{c}_x)=\sum_t\log c_x(t)!-f\left(\frac{\ell(x)}{4^k}\right)
+H(\ell)=\sum_{\vec{c}_x}P(\vec{c}_x)\log P(\vec{c}_x)
+$$
+is the negative entropy of $P(\vec{c}_x)$, which is
+$$
+H(\ell)=\log\ell!+\ell\sum_t q_t\log q_t-f(\ell)=g(\ell)+\ell\sum_t q_t\log r_t-f(\ell)
 $$
 where
+$$
+f(\ell;\vec{q})\triangleq\sum_t\sum_{n=0}^{\ell}\binom{\ell}{n}q_t^n(1-q_t)^{\ell-n}\log n!
+$$
+Under the Poisson approximation,
 \begin{equation}\label{eq:f}
-f(\lambda)\triangleq4^ke^{-\lambda}\sum_{n=0}^\infty\log n!\cdot\frac{\lambda^n}{n!}
+f(\ell;\vec{q})\approx\sum_t e^{-\ell q_t}\sum_{n=0}^{\infty}\log n!\cdot\frac{(\ell q_t)^n}{n!}
 \end{equation}
-$Q(\vec{c}_x)$ is higher for LC string $x$.
+Now introduce
+\begin{eqnarray*}
+\tilde{Q}(\vec{c}_x)&\triangleq&H(\ell)-\log P(\vec{c}_x)\\
+&=&\sum_t\log c_x(t)!-f(\ell(x))+\sum_t\big[\ell(x) q_t-c_x(t)\big]\log r_t
+\end{eqnarray*}
+$\tilde{Q}(\vec{c}_x)$ approaches 0 given a random string $x$ regardless of its length.
+We can thus compare strings of different lengths.
+However, $\tilde{Q}$ measures both $k$-mer repetitiveness in the first term
+and $k$-mer usage in the last term.
+It is possible for $\tilde{Q}$ to reach a large value if string $x$ is composed of rare unique $k$-mers.
+To cancel the effect of rare $k$-mers, we ignore the last term and use
+$$
+Q(\vec{c}_x;\vec{q})\triangleq\sum_t\log c_x(t)!-f(\ell(x);\vec{q})
+$$
+to measure the complexity of string $x$.
+$Q(\vec{c}_x)$ also approaches 0 given a random string $x$
+because $\tilde{Q}(\vec{c}_x)$ approaches 0 and $c_x(t)$ approaches $\ell(x)q_t$.
+$Q(\vec{c}_x)$ is higher for LC strings.
+
+\begin{figure}[tb]
+\centering
+\includegraphics[width=\columnwidth]{fig1}
+\caption{Scaling function.
+{\bf (a)} Function value of $f(\ell)$ in Eq.(\ref{eq:f}) at $k=7$.
+{\bf (b)} First derivative. Eqivalent to per-base contribution.}\label{fig:f}
+\end{figure}
+
+In practice, $k$-mer frequency $\vec{q}$ is computed from genome-wide GC content.
+Low or high GC content leads to elevated $f(\ell)$ (Fig.~\ref{fig:f}),
+which is expected as $c_x(t)$ grows faster with more biased GC content.
 
 \subsection{Scoring low-complexity intervals}
 
-%As base frequencies vary with the GC content
-%and genome sequences are rarely random,
-%$Q(\vec{c}_x)$ still increases with $\ell(x)$ on real data.
 To put a threshold on the complexity, we finally use the following function to score string complexity:
 \begin{equation}\label{eq:S}
-S(\vec{c}_x)\triangleq Q(\vec{c}_x)-T\cdot\ell(x)=\sum_t\log c_x(t)!-T\cdot\ell(x)-f\left(\frac{\ell(x)}{4^k}\right)
+S(\vec{c}_x)\triangleq Q(\vec{c}_x)-T\cdot\ell(x)=\sum_t\log c_x(t)!-T\cdot\ell(x)-f(\ell(x))
 \end{equation}
 Threshold $T$ controls the level of complexity in the output.
 It defaults to $0.6$, less than $\log 2$.
-At $k=7$, $f(\ell/4^k)$ is close to 0 for small $\ell$.
+At $k=7$, $f(\ell)$ is close to 0 for small $\ell$.
 $0.6\ell$ is the larger term within the default window size of 5kb (Fig.~\ref{fig:f}).
-
-\begin{figure}[b]
-\centering
-\includegraphics[width=0.7\columnwidth]{f-func}
-\caption{Function values of $f(\cdot)$ and $\tilde{f}(\cdot)$ in Eq.(\ref{eq:f}) and Eq.(\ref{eq:f2}).}\label{fig:f}
-\end{figure}
 
 If $S(\vec{c}_x)>0$, $x$ is considered to contain an LC substring.
 However, we often do not want to classify the entire $x$ as an LC substring in this case
@@ -224,7 +251,7 @@ The union of all good LC intervals marks the LC regions in a genome.
 				\State $t\gets[i-k+1,i]$\Comment{the $k$-mer ending at $i$}
 				\State $c[t]\gets c[t]+1$
 				\State $u\gets u+\log(c[t])-T$
-				\State $v\gets u-f((j-i+1)/4^k)$\Comment{$v=S(i-k+1,j)$}
+				\State $v\gets u-f(j-i+1)$\Comment{$v=S(i-k+1,j)$}
 				\If{$v<v_0$ {\bf and} $v_0=v_{\max}$}
 					\State $B\gets B\cup\{(i+1,v_{\max})\}$\Comment{a candidate start pos}
 				\ElsIf{$v\ge v_{\max}$}
@@ -244,7 +271,7 @@ The union of all good LC intervals marks the LC regions in a genome.
 				\State $t\gets[i-k+1,i]$
 				\State $c[t]\gets c[t]+1$
 				\State $u\gets u+\log(c[t])-T$
-				\State $v\gets u-f((i-i_0+1)/4^k)$
+				\State $v\gets u-f(i-i_0+1)$
 				\If{$v\ge v_{\max}$}
 					\State $v_{\max}\gets v$; $i_{\max}\gets i$
 				\EndIf
@@ -281,58 +308,16 @@ We apply the function to every position in the genome to find all good LC interv
 We can skip $j$ if $[j-k+1,j]$ is unique in $[j-w+1,j]$ because the forward pass would not reach $j$ in this case.
 We also introduce a heuristic to extend a good LC interval $[j-w,j-1]$ to $[j-w+1,j]$ without calling {\sc FindStart}().
 
-Our definition may classify a short non-repetitive interval to LC if it is flanked by highly repetitive LC intervals.
-We additionally use an X-drop heuristic~\citep{Altschul:1997vn} to alleviate this case.
+Our definition may classify a short non-repetitive interval to LC if it is surrounded by highly repetitive LC intervals.
+We additionally use an X-drop heuristic~\citep{Altschul:1997vn} to alleviate this issue.
 On the T2T-CHM13 genome, the total length of LC intervals is 0.5\% shorter with X-drop.
 The heuristic has a minor effect.
 
-The overall longdust algorithm is inexact and may result in slightly different LC regions on opposite strands (21kb out of 278Mb in T2T-CHM13).
+The overall longdust algorithm is inexact and may result in slightly different LC regions on opposite strands.
 We run the algorithm on both the forward and the reverse strand of the input sequences and merge the resulting intervals.
 The default longdust output is strand symmetric.
 
-\subsection{Adjusting for unequal $k$-mer frequencies}
-
-We assume each $k$-mer $t$ occurs at frequency $4^{-k}$ when deriving Eq.~(\ref{eq:S}).
-This assumption does not hold because $k$-mer frequencies are directly correlated with the genome-wide GC content
-which often deviates from 50\%.
-We will extend equations in Section~\ref{sec:model} to more general cases.
-
-Let $q_t$ be the expected frequency of $t$ with $\sum_{t\in\Sigma^k}q_t=1$.
-For convenience, introduce $r_t\triangleq4^kq_t$.
-Under equal frequency, $q_t=4^{-k}$ and thus $r_t=1$.
-For general $q_t$, Eq.~(\ref{eq:P}) becomes
-$$
-\log\tilde{P}(\vec{c}_x)=4^k\lambda(\log\lambda-1)-\sum_{t\in\Sigma^k}\log c_x(t)!+\sum_{t\in\Sigma^k}c_x(t)\log r_t
-$$
-The revised $H(\lambda)$ is more involved:
-\begin{eqnarray*}
-\tilde{H}(\lambda)&=&\sum_t\sum_{n=0}^{\infty}p(n|\lambda r_t)\log p(n|\lambda r_t)\\
-&=&4^k\lambda(\log\lambda-1)+\lambda\sum_t r_t\log r_t - \tilde{f}(\lambda)
-\end{eqnarray*}
-where
-\begin{equation}\label{eq:f2}
-\tilde{f}(\lambda)=\sum_t e^{-\lambda r_t}\sum_{n=0}^{\infty}\log n!\cdot\frac{(\lambda r_t)^n}{n!}
-\end{equation}
-It may be tempted to define the complexity as follows
-\begin{eqnarray*}
-&&\tilde{H}(\lambda)-\log\tilde{P}(\vec{c}_x)-T\cdot\ell(x)\\
-&=&\sum_t\log c_x(t)!-T\cdot\ell(x)-\tilde{f}(4^{-k}\ell(x))\\
-&&-\left(\sum_tc_x(t)\log r_t-\ell(x)\sum_t q_t\log r_t\right)
-\end{eqnarray*}
-However, such a function mixes $k$-mer counts $c_x(t)$ and background $k$-mer frequency $r_t$.
-A rare $k$-mer may contribute more to the function than a repetitive $k$-mer.
-We could not find a theoretically clean solution.
-Nonetheless, we note that the contribution of $r_t$ mainly comes from the last term in the parenthesis
-and it approaches 0 under large $\ell(x)$ because $c_x(t)\approx\ell(x)q_t$.
-We decide to ignore the term and define the complexity function as
-$$
-\tilde{S}(\vec{c}_x)=\sum_t\log c_x(t)!-T\cdot\ell(x)-\tilde{f}\left(\frac{\ell(x)}{4^k}\right)
-$$
-The only difference from Eq.~(\ref{eq:S}) is that $\tilde{S}$ uses $\tilde{f}$ instead of $f$.
-As is shown in Fig.~\ref{fig:f}, $\tilde{f}$ is larger than $f$ when the GC content deviates from 50\%.
-This effectively raises the threshold to call LC intervals.
-
-\subsection{Comparison to SDUST}
+\subsection{The SDUST scoring}
 
 SDUST~\citep{Morgulis:2006aa} uses the following complexity scoring function:
 $$
@@ -363,7 +348,8 @@ $$
 S_E(\vec{c}_x)\triangleq\log\ell(x)-H(\vec{c}_x)-T=\frac{1}{\ell(x)}\sum_t c_x(t)\log c_x(t)-T
 $$
 We adapted longdust for $S_E$ and found using $S_E$ is more than twice as slow.
-We suspected some longdust heuristics did not work well with $S_E$, but we did not investigate further.
+We suspected some longdust heuristics did not work well with $S_E$.
+Not backed up by a statistical model, it is not apparent how to integrate GC adjustment, either.
 
 \section{Results}
 
@@ -388,6 +374,16 @@ Performance measured on a Linux server equipped with Intel Xeon Gold 6130 CPU an
 \end{tablenotes}
 \end{table}
 
+We applied longdust, SDUST v0.1~\citep{Morgulis:2006aa},
+pytrf v1.4.2~\citep{Du:2025aa},
+TRF v4.10~\citep{Benson:1999aa},
+TANTAN v51~\citep{Frith:2011aa},
+and ULTRA v1.20~\citep{Olson:2024aa}
+to the T2T-CHM13 human genome~\citep{Nurk:2022up}.
+The maximum period was set to 500 (Table~\ref{tab:cmd}).
+Notably, TRF would not finish in days with the default option {\tt -l}.
+With {\tt -l30}, TRF could run in 11 hours using 17.82GB memory at the peak.
+
 \begin{figure}[tb]
 \includegraphics[width=\columnwidth]{len}
 \caption{Lengths of low-complexity regions in T2T-CHM13.
@@ -399,21 +395,12 @@ Alternative settings --
 ``longdust-w8k'': window size $w=8000$;
 ``longdust-t.5'': score threshold $T=0.5$;
 ``longdust-k8'': using 8-mers;
+``longdust-g.3'': genome-wide GC set to 30\%;
 ``TRF-c4'': requiring $\ge4$ copies of the repeat unit;
 ``TANTAN-r1e-9'': run with ``-r 1e-9'';
 ``ULTRA-s30'': requiring score $\ge30$ in the output.
 }\label{fig:len}
 \end{figure}
-
-We applied longdust, SDUST v0.1~\citep{Morgulis:2006aa},
-pytrf v1.4.2~\citep{Du:2025aa},
-TRF v4.10~\citep{Benson:1999aa},
-TANTAN v51~\citep{Frith:2011aa},
-and ULTRA v1.20~\citep{Olson:2024aa}
-to the T2T-CHM13 human genome~\citep{Nurk:2022up}.
-The maximum period was set to 500 (Table~\ref{tab:cmd}).
-Notably, TRF would not finish in days with the default option {\tt -l}.
-With {\tt -l30}, TRF could run in 11 hours using 17.82GB memory at the peak.
 
 Due to the lack of ground truth, we could not calculate the accuracy of longdust.
 We instead checked how often longdust reports regions unique to itself
@@ -424,6 +411,7 @@ Of the remaining 52.7Mb, 34.1Mb overlaps with TRF; 15.4Mb of the remainder (18.6
 Only 3.2Mb is left, suggesting most longdust LC regions fall in centromeres or are found by TRF or SDUST.
 Longdust uses three parameters: $k$-mer size, window size $w$ and score threshold $T$.
 Varying these parameters do not greatly alter the results.
+The GC adjustment also has minor effect even when we intentionally set the genome-wide GC below the actual value of 41\%.
 
 TRF, the most popular tandem repeat finder, finds 274.5Mb of tandem repeats,
 244.0Mb of which have $\ge4$ copies of repeat units.
@@ -466,8 +454,7 @@ The longest block is only 1587bp.
 With ``-r 1e-9'', TANTAN misses 7.6\% of this satellite.
 Across all satellite regions annotated on T2T-CHM13,
 the N50 block size is 2.9Mb, 2.0Mb, 10.2kb and 340bp for longdust, TRF, ULTRA and TANTAN, respectively.
-Longdust reports the longest blocks probably because it merges satellites of different types,
-which is a weakness in comparison to TRF.
+Longdust reports the longest blocks probably because it merges satellites of different types.
 
 One application of LC masking is to speed up cross-species whole-genome alignment.
 90.8\% of satellites found by longdust lie in blocks longer than 10kb
@@ -476,6 +463,30 @@ By setting a block length threshold, we can mask the bulk of satellite without a
 A similar strategy works for TRF that also reports long blocks.
 We would need to stitch shorter blocks reported ULTRA and TANTAN to use this strategy,
 which would add another layer of complexity.
+
+\subsection{Checking strand symmetry}
+
+\begin{figure}[tb]
+\includegraphics[width=\columnwidth]{rev}
+\caption{Strand asymmetry.
+Each tool is run on the original T2T-CHM13 and the reverse complement of the genome.
+The LC intervals outputted from the two runs are compared.
+The Y axis shows ${\rm 1-intersection/union}$ for each tool.
+Longdust by default applies the algorithm to both strands and outputs the union;
+``longdust-f'' refers to the mode that processes one strand only.
+}\label{fig:strand}
+\end{figure}
+
+SDUST is strand symmetric in that running SDUST on either strand of the input sequences gives identical results.
+While longdust defines string complexity with strand summetry,
+it uses heuristics in implementation and may report different LC intervals if it is run on the reverse complement of the input sequences.
+To achieve strand symmetry, longdust applies the same algorithm to both strands and output the union intervals.
+Without the union, 0.17\% of LC regions are specific to one strand (Fig.~\ref{fig:strand}).
+
+We also checked the strand differences of other tools.
+For most of them, a few percent of LC regions are strand specific.
+However, a large fraction of LC regions found by TANTAN was only reported on one strand.
+The difference is driven by regions outside centromeric satellites, where the percent difference reaches 60.0\%.
 
 \subsection{Low-complexity regions in a gorilla genome}
 
@@ -489,16 +500,27 @@ we extracted 298.8Mb of regions in the gorilla genome that are $\ge10$kb in leng
 99.7\% of them are marked as LC regions by longdust and none of them are alpha satellite.
 95.8\% of these gorilla-specific regions are distributed within 15Mb from telomeres,
 broadly in line with \citet{Yoo:2025aa}.
+
+TANTAN with ``{\tt -w500 -r1e-9}'' reported 672.2Mb of LC regions, 629.1Mb of which overlapped with longdust.
+TANTAN still tends to report fragmented regions with an N50 block length of 3.7kb.
 We also ran TRF on the gorilla genome.
 It did not finish in a week with option ``{\tt -l20}''.
 
 \section{Discussions}
 
-Implemented in the C programming language, longdust is a fast and lightweight command-line tool for
-identifying low-complexity regions.
-It rarely finds LC regions not reported by TRF plus SDUST
-and can recover most tandem repeats with $\ge4$ copies of repeat units.
-Longdust provides basic APIs in C and can also be used as a programming library.
+%Implemented in the C programming language, longdust is a fast and lightweight command-line tool for
+%identifying low-complexity regions.
+%It rarely finds LC regions not reported by TRF plus SDUST
+%and can recover most tandem repeats with $\ge4$ copies of repeat units.
+%Longdust provides basic APIs in C and can also be used as a programming library.
+
+\citet{Du:2025aa} observed that each tandem repeat finding tool reported a large fraction of regions unique to itself.
+We think this is driven by weak tandem repeats that are composed of a few diverged repeat units.
+If we focus on highly repetitive LC regions, longdust, TRF, TANTAN and ULTRA agree reasonably well with each other.
+It is difficult to tell which tool is more accurate in terms of genome-wide coverage.
+We do not intend to brand longdust as the best tool for LC finding;
+we emphasize more on a new probabilitic model for defining string complexity,
+which advances the SDUST algorithm and achieves a descent balance between performance, coverage, block contiguity and strand symmetry.
 
 From the theoretical point of view, longdust uses an approximate algorithm.
 It tests LC intervals ending at each position with Algorithm~\ref{algo:LC1},
@@ -520,7 +542,7 @@ It would be ideal to have an algorithm that remains efficient given large window
 
 We are grateful to Qian Qin for evaluating the effect of low-complexity regions in structural variant calling,
 and to Maximilian Haeussler for explaining the role of masking low-complexity regions in cross-species alignment.
-We thank one of the reviewers for suggesting better parameters.
+We thank the reviewers for suggesting cleaner derivation.
 
 \section*{Author contributions}
 
