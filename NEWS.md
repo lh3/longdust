@@ -1,3 +1,15 @@
+Release 1.3-r87 (16 November 2025)
+----------------------------------
+
+Notable changes:
+
+ * New feature: correct for GC content. Biased GC only increases the scaling
+   function f().
+
+(1.3: 16 November 2025, r87)
+
+
+
 Release 1.2-r75 (8 September 2025)
 ----------------------------------
 
