@@ -36,9 +36,9 @@
 \sffamily\footnotesize
 \textbf{Motivation:}
 Low-complexity (LC) DNA sequences are compositionally repetitive sequences
-that are often associated with increased variant density and variant calling artifacts.
+that are often associated with spurious homologous matches and variant calling artifacts.
 While algorithms for identifying LC sequences exist,
-they rely on heuristics or are inefficient with long context windows.
+they either do not define complexity mathematically or are inefficient with long or variable context windows.
 \vspace{0.5em}\\
 \textbf{Results:}
 Longdust is a new algorithm that efficiently identifies long LC sequences including centromeric satellite
@@ -184,7 +184,7 @@ $Q(\vec{c}_x)$ is higher for LC strings.
 \includegraphics[width=\columnwidth]{fig1}
 \caption{Scaling function.
 {\bf (a)} Function value of $f(\ell)$ in Eq.(\ref{eq:f}) at $k=7$.
-{\bf (b)} First derivative. Eqivalent to per-base contribution.}\label{fig:f}
+{\bf (b)} First derivative. Equivalent to per-base contribution.}\label{fig:f}
 \end{figure}
 
 In practice, $k$-mer frequency $\vec{q}$ is computed from genome-wide GC content.
@@ -209,7 +209,7 @@ could still lead to a positive score.
 
 Recall that we may use close intervals to represent substrings.
 For convenience, we write $S(\vec{c}_{[i,j]})$ as $S(i,j)$.
-In implementation, we precalculate $f(\ell/4^k)$ and introduce
+In implementation, we precalculate $f(\ell)$ and introduce
 \begin{eqnarray*}
 U(i,j)&\triangleq&\sum_t\log c_{[i,j]}(t)!-T\cdot\ell([i,j])\\
 &=&U(i,j-1)+\log c_{[i,j]}([j-k+1,j])-T
@@ -366,7 +366,7 @@ SDUST    & 0.07   & 0.23 & {\tt -t30} \\
 pytrf    & 2.64   & 0.70 & {\tt -M500} \\
 TRF      & 12.83  & 7.49 & {\tt 2 7 7 80 10 50 500 -l12} \\
 TANTAN   & 0.56   & 1.28 & {\tt -w500} \\
-ULTRA    & 146.07 & 33.31& {\tt -p500 -t16} \\
+ULTRA    & 146.07 & 33.31& {\tt -p 500 -t 16} \\
 \botrule
 \end{tabular*}
 \begin{tablenotes}\setlength\itemsep{0.0em}
@@ -478,7 +478,7 @@ Longdust by default applies the algorithm to both strands and outputs the union;
 \end{figure}
 
 SDUST is strand symmetric in that running SDUST on either strand of the input sequences gives identical results.
-While longdust defines string complexity with strand summetry,
+While longdust defines string complexity with strand symmetry,
 it uses heuristics in implementation and may report different LC intervals if it is run on the reverse complement of the input sequences.
 To achieve strand symmetry, longdust applies the same algorithm to both strands and output the union intervals.
 Without the union, 0.17\% of LC regions are specific to one strand (Fig.~\ref{fig:strand}).
@@ -519,7 +519,7 @@ We think this is driven by weak tandem repeats that are composed of a few diverg
 If we focus on highly repetitive LC regions, longdust, TRF, TANTAN and ULTRA agree reasonably well with each other.
 It is difficult to tell which tool is more accurate in terms of genome-wide coverage.
 We do not intend to brand longdust as the best tool for LC finding;
-we emphasize more on a new probabilitic model for defining string complexity,
+we emphasize more on a new probabilistic model for defining string complexity,
 which advances the SDUST algorithm and achieves a descent balance between performance, coverage, block contiguity and strand symmetry.
 
 From the theoretical point of view, longdust uses an approximate algorithm.
