@@ -140,7 +140,7 @@ struct ld_data_s {
 	const ld_opt_t *opt;
 	double *f, *c;
 	kdq_t(uint32_t) *q;
-	int32_t *ht, *ht_for;
+	uint16_t *ht;
 	int32_t max_test, n_for_pos;
 	ld_forpos_t *for_pos;
 	// output
@@ -163,9 +163,10 @@ ld_data_t *ld_data_init(void *km, const ld_opt_t *opt)
 	int32_t i;
 	double s, sl;
 	ld_data_t *ld;
+	assert(opt->ws > 0 && opt->ws < 0xffff);
 	ld = Kcalloc(km, ld_data_t, 1);
 	ld->opt = opt;
-	ld->ht = Kcalloc(km, int32_t, 1U<<2*opt->kmer);
+	ld->ht = Kcalloc(km, uint16_t, 1U<<2*opt->kmer);
 	if (opt->gc > 0.0 && opt->gc < 1.0) {
 		ld_raux_t *r;
 		r = ld_raux_init(km, opt->kmer, opt->gc);
@@ -200,12 +201,12 @@ void ld_data_destroy(ld_data_t *ld)
 	kfree(km, ld);
 }
 
-static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, double max_back, int32_t *ht)
+static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, double max_back, uint16_t *ht)
 {
 	const ld_opt_t *opt = ld->opt;
 	int32_t max_i = -1, i, l;
 	double s, sl, max_sf = 0.0;
-	memset(ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
+	memset(ht, 0, sizeof(uint16_t) * (1U<<2*opt->kmer));
 	for (i = i0, l = 1, s = sl = 0.0; i < kdq_size(ld->q); ++i, ++l) {
 		uint32_t x = kdq_at(ld->q, i);
 		s += (x&1? 0 : ld->c[++ht[x>>1]]) - opt->thres;
@@ -216,14 +217,14 @@ static int32_t ld_dust_forward(ld_data_t *ld, int32_t i0, double max_back, int32
 	return max_i;
 }
 
-static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_ht, double win_sum)
+static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const uint16_t *win_ht, double win_sum)
 {
 	const ld_opt_t *opt = ld->opt;
 	double xdrop = opt->thres * (opt->xdrop_len > 0? opt->xdrop_len : opt->ws);
 	int32_t i, l, max_i = -1, max_end;
 	double s, sl, sw, max_sb = 0.0, last_sl = -1.0;
 
-	memset(ld->ht, 0, sizeof(int32_t) * (1U<<2*opt->kmer));
+	memset(ld->ht, 0, sizeof(uint16_t) * (1U<<2*opt->kmer));
 	ld->n_for_pos = 0;
 	for (i = kdq_size(ld->q) - 1, l = 1, s = sl = sw = 0.0; i >= 0; --i, ++l) { // backward
 		uint32_t x = kdq_at(ld->q, i);
@@ -268,7 +269,7 @@ static inline int32_t ld_extend(ld_data_t *ld)
 	return 0;
 }
 
-static int32_t ld_if_backward(const ld_data_t *ld, const int32_t *ht, int32_t max_step)
+static int32_t ld_if_backward(const ld_data_t *ld, const uint16_t *ht, int32_t max_step)
 {
 	int32_t i, j;
 	double s = 0.0;
@@ -304,12 +305,12 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 	uint32_t x, mask = (1U<<2*opt->kmer) - 1;
 	int64_t i, l, st = -1, en = -1;
 	int64_t last_q = -1; // last_q: pos in queue when last_i is set
-	int32_t *ht;
+	uint16_t *ht;
 	double ht_sum = 0.0;
 
 	ld->n_intv = 0;
 	ld->q->front = ld->q->count = 0;
-	ht = Kcalloc(ld->km, int32_t, mask + 1);
+	ht = Kcalloc(ld->km, uint16_t, mask + 1);
 	for (i = 0, x = 0, l = 0; i <= len; ++i) {
 		int32_t ambi, j, b = i < len? seq_nt4_table[seq[i]] : 4;
 		if (b < 4) {
