@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -v          version number\n");
 		fprintf(stderr, "Notes:\n");
 		fprintf(stderr, "  * Recommend w < 4^k for performance, especially given large w\n");
-		fprintf(stderr, "  * Use \"-k6 -w1000 -t.55\" for more relaxed but shorter regions\n");
+		fprintf(stderr, "  * Use \"-k8 -w20000\" for longer motifs\n");
 		return 1;
 	}
 
