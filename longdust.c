@@ -229,14 +229,13 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 		uint32_t x = kdq_at(ld->q, i);
 		s += (x&1? 0 : ld->c[++ld->ht[x>>1]]) - opt->thres;
 		sl = s - ld->f[l]; // this is the score
+		sw += (x&1? 0 : ld->c[win_ht[x>>1] + 1 - ld->ht[x>>1]]) - opt->thres;
+		if (sw - ld->f[l] < 0.0) break; // in this case, the forward pass won't reach _pos_
 		if (sl < last_sl && last_sl > 0.0 && last_sl == max_sb) // store positions where forward may be needed
 			ld->for_pos[ld->n_for_pos].pos = i + 1, ld->for_pos[ld->n_for_pos++].max = max_sb;
 		if (sl >= max_sb) {
 			max_sb = sl, max_i = i;
-		} else if (max_i < 0) {
-			sw += (x&1? 0 : ld->c[win_ht[x>>1] + 1 - ld->ht[x>>1]]) - opt->thres;
-			if (sw - ld->f[l] < 0.0) break; // in this case, the forward pass won't reach _pos_
-		} else {
+		} else if (max_i >= 0) {
 			if (max_sb - sl > xdrop) break; // X-drop
 		}
 		//if (win_sum - ld->f[l] - l * opt->thres < max_sb) break; // in this case, we won't get a higher score even if we reach i==0; not very effective
