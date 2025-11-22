@@ -234,8 +234,8 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const int32_t *win_h
 		if (sl >= max_sb) {
 			max_sb = sl, max_i = i;
 		} else if (max_i < 0) {
-			sw += (x&1? 0 : ld->c[win_ht[x>>1]]) - opt->thres;
-			if (sw < 0.0) break; // in this case, the forward pass won't reach _pos_
+			sw += (x&1? 0 : ld->c[win_ht[x>>1] + 1 - ld->ht[x>>1]]) - opt->thres;
+			if (sw - ld->f[l] < 0.0) break; // in this case, the forward pass won't reach _pos_
 		} else {
 			if (max_sb - sl > xdrop) break; // X-drop
 		}
