@@ -154,6 +154,7 @@ void ld_opt_init(ld_opt_t *opt)
 	opt->ws = 5000;
 	opt->thres = 0.6;
 	opt->xdrop_len = 50;
+	opt->min_start_cnt = 3;
 	opt->approx = 0;
 	opt->gc = -1.0; // GC correction disabled by default
 }
@@ -259,7 +260,7 @@ static int32_t ld_dust_backward(ld_data_t *ld, int64_t pos, const uint16_t *win_
 
 static inline int32_t ld_extend(ld_data_t *ld)
 {
-	uint32_t x = kdq_at(ld->q, kdq_size(ld->q) - 1);
+	uint32_t x = kdq_last(ld->q);
 	int32_t l = kdq_size(ld->q) - 1;
 	double diff;
 	if (x&1) return -1;
@@ -325,15 +326,16 @@ void ld_dust1(ld_data_t *ld, int64_t len, const uint8_t *seq)
 			uint32_t *p;
 			p = kdq_shift(uint32_t, ld->q);
 			if ((*p&1) == 0) ht_sum -= ld->c[ht[*p>>1]--];
-			if (last_q == 0) --ld->ht[*p>>1];
-			else --last_q; // this needs to be updated as the queue is shifted
+			if (last_q == 0) {
+				if ((*p&1) == 0 && ld->ht[*p>>1] > 0) --ld->ht[*p>>1]; // FIXME: why ld->ht[*p>>1] can be 0?
+			} else --last_q; // this needs to be updated as the queue is shifted
 		}
 		kdq_push(uint32_t, ld->q, x<<1|ambi);
 		if (ambi) continue;
 		ht_sum += ld->c[++ht[x]];
 
 		j = -1;
-		if (ht[x] > 1) { // no need to call the following if x is a singleton in the window; DON'T test ld_is_back() here!
+		if (ht[x] >= opt->min_start_cnt) { // no need to call the following if x has low count in the window; DON'T test ld_is_back() here!
 			double swin = ht_sum - ld->f[kdq_size(ld->q)] - kdq_size(ld->q) * opt->thres; // this is the full window score
 			if (i == en && (last_q == 0 || i - st >= kdq_size(ld->q)) && swin > 0.0) // test and potentially extend the base at i, ONLY when the full window is LCR
 				j = ld_extend(ld);

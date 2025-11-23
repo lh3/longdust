@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 	ld_data_t *ld;
 
 	ld_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "k:w:e:t:fvag:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:w:e:t:fvag:b:", 0)) >= 0) {
 		if (c == 'k') opt.kmer = atoi(o.arg);
 		else if (c == 'w') opt.ws = atoi(o.arg);
 		else if (c == 't') opt.thres = atof(o.arg);
@@ -24,6 +24,7 @@ int main(int argc, char *argv[])
 		else if (c == 'g') opt.gc = atof(o.arg);
 		else if (c == 'a') opt.approx = 1;
 		else if (c == 'f') for_only = 1;
+		else if (c == 'b') opt.min_start_cnt = atoi(o.arg);
 		else if (c == 'v') {
 			puts(LD_VERSION);
 			return 0;
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  -t FLOAT    score threshold [%g]\n", opt.thres);
 		fprintf(stderr, "  -g FLOAT    genome-wide GC content [0.5]\n");
 		fprintf(stderr, "  -e INT      extension X-drop length (0 to disable) [%d]\n", opt.xdrop_len);
+		fprintf(stderr, "  -s INT      min start k-mer count (2 or 3) [%d]\n", opt.min_start_cnt);
 		fprintf(stderr, "  -f          forward strand only\n");
 		fprintf(stderr, "  -a          guaranteed O(Lw) algorithm but with more approximation\n");
 		fprintf(stderr, "  -v          version number\n");
@@ -45,6 +47,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "  * Use \"-k8 -w20000\" for longer motifs\n");
 		return 1;
 	}
+	if (opt.min_start_cnt < 2) opt.min_start_cnt = 2;
 
 	fp = strcmp(argv[o.ind], "-")? gzopen(argv[o.ind], "r") : gzdopen(0, "r");
 	ks = kseq_init(fp);

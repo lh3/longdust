@@ -1,12 +1,12 @@
 #ifndef LONGDUST_H
 #define LONGDUST_H
 
-#define LD_VERSION "1.3-r95-dirty"
+#define LD_VERSION "1.3-r96-dirty"
 
 #include <stdint.h>
 
 typedef struct {
-	int32_t kmer, ws, xdrop_len, approx;
+	int32_t kmer, ws, xdrop_len, approx, min_start_cnt;
 	double thres, gc;
 } ld_opt_t;
 
