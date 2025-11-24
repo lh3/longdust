@@ -1,3 +1,15 @@
+Release 1.4-r97 (24 November 2025)
+----------------------------------
+
+Notable changes:
+
+ * Improvement: almost doubled performance with tighter bound and 16-bit
+   counts. The results are slightly different (2.5kb out of 277Mb).
+
+(1.4: 24 November 2025, r97)
+
+
+
 Release 1.3-r87 (16 November 2025)
 ----------------------------------
 
