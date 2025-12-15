@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 	ld_data_t *ld;
 
 	ld_opt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "k:w:e:t:fvag:b:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "k:w:e:t:fvag:s:", 0)) >= 0) {
 		if (c == 'k') opt.kmer = atoi(o.arg);
 		else if (c == 'w') opt.ws = atoi(o.arg);
 		else if (c == 't') opt.thres = atof(o.arg);
@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
 		else if (c == 'g') opt.gc = atof(o.arg);
 		else if (c == 'a') opt.approx = 1;
 		else if (c == 'f') for_only = 1;
-		else if (c == 'b') opt.min_start_cnt = atoi(o.arg);
+		else if (c == 's') opt.min_start_cnt = atoi(o.arg);
 		else if (c == 'v') {
 			puts(LD_VERSION);
 			return 0;
