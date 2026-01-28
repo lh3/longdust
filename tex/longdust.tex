@@ -38,7 +38,7 @@
 Low-complexity (LC) DNA sequences are compositionally repetitive sequences
 that are often associated with spurious homologous matches and variant calling artifacts.
 While algorithms for identifying LC sequences exist,
-they either do not define complexity mathematically or are inefficient with long or variable context windows.
+they either lack concise mathematical definition of complexity or are inefficient with long or variable context windows.
 \vspace{0.5em}\\
 \textbf{Results:}
 Longdust is a new algorithm that efficiently identifies long LC sequences including centromeric satellite
@@ -56,7 +56,7 @@ Longdust exhibits high performance on real data and high consistency with existi
 \section{Introduction}
 
 A string is of low complexity (LC) if it is repetitive in composition.
-LC strings may lead to spurious homologous matches~\citep{Morgulis:2006aa} and cause variant calling artifacts~\citep{Li:2014aa,Qin:2025aa}.
+LC strings may lead to spurious homologous matches~\citep{Morgulis:2006aa} and cause variant calling artifacts~\citep{Li:2014aa,Qin:2025ab,Li:2025ab}.
 In computer science, string complexity can be measured with Kolmogorov complexity~\citep{DBLP:journals/tcs/Kolmogorov98,Silva:2022aa},
 Lempel-Ziv complexity~\citep{DBLP:journals/tit/LempelZ76,Orlov:2004aa}
 or Shannon entropy~\citep{DBLP:journals/bstj/Shannon48}.
@@ -78,12 +78,14 @@ It tends to classify long strings as LC over short ones.
 A large window size $w$ would make this worse.
 As a result, SDUST is not suitable for finding satellite or tandem repeats with long motifs.
 
-In genomes, LC strings are often tandemly repetitive due to DNA polymerase slippage.
-Such tandem repeats can be identified with tandem repeat finding algorithms such as
+In genomes, LC strings are usually tandemly repetitive due to DNA polymerase slippage.
+Nonetheless, due to point mutations in evolution and recurrent slippage to the same region but over different bases,
+long tandem repeats are often ``impure'' in that units in a tandem repeat differ from each other.
+Such impure tandem repeats can be identified with tandem repeat finding algorithms such as
 TRF~\citep{Benson:1999aa}, ULTRA~\citep{Olson:2024aa} and pytrf~\citep{Du:2025aa}.
 They report repeat motifs and copy numbers, which are useful in downstream analyses.
 TANTAN~\citep{Frith:2011aa} models tandem patterns but can often identify general LC regions in practice.
-Unlike SDUST, these algorithms do not mathematically define string complexity.
+Unlike SDUST, these algorithms do not define string complexity with concise mathematical equations.
 
 Inspired by SDUST, we sought an alternative way to define the $k$-mer complexity of a string
 and to identify local LC regions in a genome.
@@ -96,7 +98,6 @@ enabling the efficient identification of LC strings in long context windows.
 Similar to SDUST~\citep{Morgulis:2006aa}, we define the complexity of a DNA string with a function of $k$-mer counts.
 In this section, we will model the $k$-mer count distribution of random strings with each $k$-mer occurring at equal frequency
 and describe the complexity scoring function and the condition on bounding LC substrings in a long string.
-We will then generalize the model to unequal $k$-mer frequency.
 We will also discuss alternative scoring functions such as the SDUST scoring and Shannon entropy.
 
 \subsection{Notations}
@@ -104,7 +105,7 @@ We will also discuss alternative scoring functions such as the SDUST scoring and
 Let $\Sigma=\{{\tt A},{\tt C},{\tt G},{\tt T}\}$ be the DNA alphabet,
 $x\in\Sigma^*$ is a DNA string and $|x|$ is its length.
 $t\in\Sigma^k$ is a $k$-mer.
-For $|x|\ge k$, $c_x(t)$ is the occurrence of $k$-mer $t$ in $x$;
+For $|x|\ge k$, $c_x(t)$ is the count of $k$-mer $t$ in $x$;
 $\ell(x)=\sum_t c_x(t)=|x|-k+1$ is the total number of $k$-mers in $x$.
 $\vec{c}_x$, of size $4^k$, denotes the count array over all $k$-mers.
 
@@ -115,8 +116,8 @@ We may use ``interval'' and ``substring'' interchangeably.
 
 \subsection{Modeling $k$-mer counts}\label{sec:model}
 
-For a $k$-mer $t\in\Sigma^k$, $q_t$ is its frequency with $\sum_t q_t=1$.
-$\vec{c}_x$ follows a multinomial distribution:
+For a $k$-mer $t\in\Sigma^k$ in a random string $x$, $q_t$ is its frequency with $\sum_t q_t=1$.
+$\vec{c}_x$ follows a multinomial distribution under a bag-of-words model:
 $$
 P(\vec{c}_x;\vec{q})=\ell(x)!\prod_{t\in\Sigma^k}\frac{q_t^{c_x(t)}}{c_x(t)!}
 $$
@@ -135,7 +136,7 @@ To get an intuition about the effect of low-complexity strings,
 suppose $q_t=1/4^k$ and $\ell(x)\ll4^k$.
 In this case, the last term in Eq.~(\ref{eq:P}) is 0
 and $c_x(t)$ is mostly 0 or 1 for a random string.
-$\log P(\vec{c}_x)$ will be close $g(\ell(x))$.
+$\log P(\vec{c}_x)$ will be close to $g(\ell(x))$.
 Given an LC string of the same length,
 we will see more $c_x(t)$ of 2 or higher, which will reduce $\log P(\vec{c}_x)$.
 Thus the probability of an LC string is lower under this model.
@@ -349,7 +350,7 @@ S_E(\vec{c}_x)\triangleq\log\ell(x)-H(\vec{c}_x)-T=\frac{1}{\ell(x)}\sum_t c_x(t
 $$
 We adapted longdust for $S_E$ and found using $S_E$ is more than twice as slow.
 We suspected some longdust heuristics did not work well with $S_E$.
-Not backed up by a statistical model, it is not apparent how to integrate GC adjustment, either.
+%Not backed up by a statistical model, it is not apparent how to integrate GC adjustment, either.
 
 \section{Results}
 
@@ -487,6 +488,8 @@ We also checked the strand differences of other tools.
 For most of them, a few percent of LC regions are strand specific.
 However, a large fraction of LC regions found by TANTAN was only reported on one strand.
 The difference is driven by regions outside centromeric satellites, where the percent difference reaches 60.0\%.
+Although TANTAN intends to keep the leftmost repeat copy intact,
+the large difference is still unexpected given that human centromeres are mostly composed of several types of megabase-long tandem arrays.
 
 \subsection{Low-complexity regions in a gorilla genome}
 
@@ -514,13 +517,20 @@ It did not finish in a week with option ``{\tt -l20}''.
 %and can recover most tandem repeats with $\ge4$ copies of repeat units.
 %Longdust provides basic APIs in C and can also be used as a programming library.
 
+The development of longdust was motivated by our recent work on small variant filtration~\citep{Li:2025ab} and structural variant stratification~\citep{Qin:2025ab}.
+In the first work, we initially used SDUST and noticed it missed long LC regions that harbor false variant calls.
+We improved the results with longdust.
+In the second work, we needed to scan hundreds of human assemblies to find LC regions not present on the reference genome.
+Longdust was chosen for its high performance.
+In both cases, we investigated the TRF output on the reference genome and found the conclusions remained similar.
+
 \citet{Du:2025aa} observed that each tandem repeat finding tool reported a large fraction of regions unique to itself.
 We think this is driven by weak tandem repeats that are composed of a few diverged repeat units.
 If we focus on highly repetitive LC regions, longdust, TRF, TANTAN and ULTRA agree reasonably well with each other.
-It is difficult to tell which tool is more accurate in terms of genome-wide coverage.
+In lack of ground truth, it is difficult to tell which tool is more accurate in terms of genome-wide coverage.
 We do not intend to brand longdust as the best tool for LC finding;
 we emphasize more on a new probabilistic model for defining string complexity,
-which advances the SDUST algorithm and achieves a descent balance between performance, coverage, block contiguity and strand symmetry.
+which advances the SDUST algorithm and achieves a descent balance between performance, coverage, and strand symmetry.
 
 From the theoretical point of view, longdust uses an approximate algorithm.
 It tests LC intervals ending at each position with Algorithm~\ref{algo:LC1},
